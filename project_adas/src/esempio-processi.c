@@ -10,12 +10,17 @@
  * 
  * 
 */
+
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
+#include <errno.h>
+#include <string.h>
+
+__pid_t pid;
 
 int main() {
     int fd[2];
-    pid_t pid;
 
     // crea la pipe
     if (pipe(fd) == -1) {
