@@ -11,4 +11,4 @@ add_executable(project_adas
         data/randomARTIFICIALE.binary
         data/urandomARTIFICIALE.binary
         src/esempio-processi.c
-        src/hmi.c src/ecu.c src/ecu.h)
+        src/hmi.c src/ecu.c src/throttlebycontrol.c src/throttlebycontrol.c src/throttlebycontrol.c src/brakebywire.c)

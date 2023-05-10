@@ -70,6 +70,20 @@ build CMakeFiles/project_adas.dir/src/ecu.c.o: C_COMPILER__project_adas_Debug /m
   OBJECT_DIR = CMakeFiles/project_adas.dir
   OBJECT_FILE_DIR = CMakeFiles/project_adas.dir/src
 
+build CMakeFiles/project_adas.dir/src/throttlebycontrol.c.o: C_COMPILER__project_adas_Debug /media/jonathan/HDD-Secondary/unifi/progetto-so/ProgettoSO/project_adas/src/throttlebycontrol.c || cmake_object_order_depends_target_project_adas
+  DEP_FILE = CMakeFiles/project_adas.dir/src/throttlebycontrol.c.o.d
+  FLAGS = -g -fdiagnostics-color=always
+  INCLUDES = -I/media/jonathan/HDD-Secondary/unifi/progetto-so/ProgettoSO/project_adas/. -I/media/jonathan/HDD-Secondary/unifi/progetto-so/ProgettoSO/project_adas/src
+  OBJECT_DIR = CMakeFiles/project_adas.dir
+  OBJECT_FILE_DIR = CMakeFiles/project_adas.dir/src
+
+build CMakeFiles/project_adas.dir/src/brakebywire.c.o: C_COMPILER__project_adas_Debug /media/jonathan/HDD-Secondary/unifi/progetto-so/ProgettoSO/project_adas/src/brakebywire.c || cmake_object_order_depends_target_project_adas
+  DEP_FILE = CMakeFiles/project_adas.dir/src/brakebywire.c.o.d
+  FLAGS = -g -fdiagnostics-color=always
+  INCLUDES = -I/media/jonathan/HDD-Secondary/unifi/progetto-so/ProgettoSO/project_adas/. -I/media/jonathan/HDD-Secondary/unifi/progetto-so/ProgettoSO/project_adas/src
+  OBJECT_DIR = CMakeFiles/project_adas.dir
+  OBJECT_FILE_DIR = CMakeFiles/project_adas.dir/src
+
 
 # =============================================================================
 # Link build statements for EXECUTABLE target project_adas
@@ -78,7 +92,7 @@ build CMakeFiles/project_adas.dir/src/ecu.c.o: C_COMPILER__project_adas_Debug /m
 #############################################
 # Link the executable project_adas
 
-build project_adas: C_EXECUTABLE_LINKER__project_adas_Debug CMakeFiles/project_adas.dir/src/esempio-processi.c.o CMakeFiles/project_adas.dir/src/hmi.c.o CMakeFiles/project_adas.dir/src/ecu.c.o
+build project_adas: C_EXECUTABLE_LINKER__project_adas_Debug CMakeFiles/project_adas.dir/src/esempio-processi.c.o CMakeFiles/project_adas.dir/src/hmi.c.o CMakeFiles/project_adas.dir/src/ecu.c.o CMakeFiles/project_adas.dir/src/throttlebycontrol.c.o CMakeFiles/project_adas.dir/src/brakebywire.c.o
   FLAGS = -g
   OBJECT_DIR = CMakeFiles/project_adas.dir
   POST_BUILD = :
