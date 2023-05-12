@@ -22,9 +22,41 @@ pid_t fatherPID;
 pid_t attuatoriPid[3]; // 3 attuatori (steer by wire, throttle control, brake by wire
 
 // PID sensori
-pid_t sensoriPid[3]; // 3 sensori (
+pid_t sensoriPid[3]; // 3 sensori (front windshield camera, front facing radar, park assist)
 pid_t frontWindshieldCameraClientPid;
 pid_t forwardFacingRadarClientPid;
+pid_t listenersPid[5]; // 5 socket number
+
+
+// socket server 
+struct sockaddr_un serverAddress;
+struct sockaddr* ptrServerAddress;
+// socket client
+struct sockaddr_un clientAddress; 
+struct sockaddr* ptrClientAddress;
+// lunghezza client e server
+int serverLength = 0;
+int clientLength = 0; 
+
+int READ = 0;
+int WRITE = 1;
+int currentSpeed = 0;
+
+//
+char sockets_name[][50]={
+"frontFacingRadarSocket",
+"parkAssistSocket",
+"frontWindShieldSocket",
+"surroundViewCameraSocket"
+};
+
+// inizializzazione pipe
+// ognuno di lunghezza due per un file in lettura e l'altro in scrittura
+int PIPE_server_to_frontwindshieldcamera_manager[2];
+int PIPE_server_to_forwardfacingradar_manager[2];
+int PIPE_server_to_hmi_manager[2];
+//int PIPE_server_to_bs_manager[2]; // non esiste questo sensore in quanto ci sono 
+int PIPE_server_to_parkassist_manager[2];
 
 int createSocketConnection(char *socketName);
 
@@ -55,17 +87,11 @@ int main(int argc, char *argv[])
     serverAddress.sun_family = AF_UNIX;
 
     // creazione delle pipe
-    // ognuno di lunghezza due per un file in lettura e l'altro in scrittura
-    int PIPE_server_to_frontwindshieldcamera_manager[2];
-    int PIPE_server_to_forwardfacingradar_manager[2];
-    int PIPE_server_to_hmi_manager[2];
-    //int PIPE_server_to_bs_manager[2]; // non esiste questo sensore
-    int PIPE_server_to_parkassist_manager[2];
 
     pipe(PIPE_server_to_frontwindshieldcamera_manager);
     pipe(PIPE_server_to_forwardfacingradar_manager);
     pipe(PIPE_server_to_hmi_manager);
-    //pipe(PIPE_server_to_bs_manager);
+    //pipe(PIPE_server_to_bs_manager); // non esiste questo sensore
     pipe(PIPE_server_to_parkassist_manager);
 
     printf("Sistema inizializzato.\n\n");
@@ -73,8 +99,6 @@ int main(int argc, char *argv[])
     int indexSensori = 0;
     attuatoriPid[indexAttuatori] = fork();
 
-    int READ = 0;
-    int WRITE = 1;
 
     if (attuatoriPid[indexAttuatori] == 0) // 0, child steer by wire
     {
@@ -144,7 +168,7 @@ int main(int argc, char *argv[])
                     //close(PIPE_server_to_bs_manager[READ]);
                     close(PIPE_server_to_frontwindshieldcamera_manager[WRITE]);
                     // ecuFwcClient(); qua sotto
-                    while((ecuClientSocketArray[0] = createSocketConnection("throttoleControlSocket")) < 0) //attende di connettersi alle socket degli attuatori
+                    while((ecuClientSocketArray[0] = createSocketConnection("throttlecontrolSocket")) < 0) //attende di connettersi alle socket degli attuatori
                         usleep(100000);
 
                     while ((ecuClientSocketArray[1] = createSocketConnection("brakebywireSocket")) < 0)
@@ -264,11 +288,11 @@ int main(int argc, char *argv[])
                                             n = read (PIPE_server_to_forwardfacingradar_manager[READ], data, 1);
 
                                         } while (n > 0);
-                                        return (n > 0);
+                                        //return (n > 0);
 
                                         if(checkFfrWarning(data) == 1)
                                         {
-                                            managePericoloToBbw();
+                                            managePericoloToBrakeByWire();
                                         }
 		                                    
                                     }
@@ -300,57 +324,53 @@ int main(int argc, char *argv[])
 }
 
 
-void managePericoloToBbw()
+void managePericoloToBrakeByWire()
 {
 	kill(attuatoriPid[2], SIGUSR1);
 	waitpid(attuatoriPid[2], NULL, 0);
 	kill(hmiPID, SIGUSR2); //comunico alla hmi di terminare l'intero albero di processi, lei esclusa, e di riavviare il sistema
 }
 
-// ARRIVATO FINO A QUI. ( CONTINUARE CON LA ECU)
+// ARRIVATO FINO A QUI. (CONTINUARE CON LA ECU - BESTIAAAAAAA)
 void serverStart()
 {
     int socketFileDescriptor, clientFileDescriptor;
 
-    for(int i = 0; i < SERVER_SOCKET_NUMBER; i++){
+    for(int i = 0; i < 5; i++) // 5 = server socket number
+    {
         listenersPid[i] = fork();
         if(listenersPid[i] == 0){
-            ecuServerSocketArray[i] = socket (AF_UNIX, SOCK_STREAM, DEFAULT_PROTOCOL);
-            strcpy (serverUNIXAddress.sun_path, sockets_name[i]);
+            ecuServerSocketArray[i] = socket (AF_UNIX, SOCK_STREAM, 0); // 0 = default protocol 
+            strcpy (serverAddress.sun_path, sockets_name[i]);
             unlink (sockets_name[i]);
-            bind (ecuServerSocketArray[i], serverSockAddrPtr, serverLen);
+            bind (ecuServerSocketArray[i], ptrServerAddress, serverLength);
             listen (ecuServerSocketArray[i], 1);
+
             while (1) {/* Loop forever */ /* Accept a client connection */
-                socketFd = accept (ecuServerSocketArray[i], clientSockAddrPtr, &clientLen);
+                socketFileDescriptor = accept (ecuServerSocketArray[i], ptrClientAddress, &clientLength);
                 char str[200];
-                while(readFromSocket(socketFd, str)){
-                    if(strcmp(sockets_name[i], "fwcSocket")== 0){//controlla che figlio è
-                        write(PIPE_server_to_fwc_manager[WRITE], str, strlen(str)+1);
+                while(readFromSocket(socketFileDescriptor, str)){
+                    if(strcmp(sockets_name[i], "frontWindShieldSocket")== 0){//controlla che figlio è
+                        write(PIPE_server_to_frontwindshieldcamera_manager[WRITE], str, strlen(str)+1);
                     } //Invia alla pipe che gestisce gli fwc.
-                    else if(strcmp(sockets_name[i], "ffrSocket") == 0){
-                        write(PIPE_server_to_ffr_manager[WRITE], str, strlen(str)+1);
-                    }
-                    else if(strcmp(sockets_name[i], "bsSocket") == 0){
-                        write(PIPE_server_to_bs_manager[WRITE], str, strlen(str)+1);
-                    }else if(strcmp(sockets_name[i], "paSocket") == 0){
-                        write(PIPE_server_to_pa_manager[WRITE], str, strlen(str)+1);
+                    else if(strcmp(sockets_name[i], "forwardfacingradarSocket") == 0){
+                        write(PIPE_server_to_forwardfacingradar_manager[WRITE], str, strlen(str)+1);
+                    }else if(strcmp(sockets_name[i], "parkassistSocket") == 0){
+                        write(PIPE_server_to_parkassist_manager[WRITE], str, strlen(str)+1);
                     }
                 }
-                close (socketFd); /* Close the socket */
+                close (socketFileDescriptor); /* Close the socket */
                 exit (0); /* Terminate */
             }
         }
     }
-    close(PIPE_server_to_ffr_manager[WRITE]);
-    close(PIPE_server_to_ffr_manager[READ]);
-    close(PIPE_server_to_fwc_manager[WRITE]);
-    close(PIPE_server_to_fwc_manager[READ]);
-    close(PIPE_server_to_bs_manager[WRITE]);
-    close(PIPE_server_to_bs_manager[READ]);
-    close(PIPE_server_to_pa_manager[WRITE]);
-    close(PIPE_server_to_pa_manager[READ]);
-    //hmiCommunication(); da qui in poi copia e incolla dell'altro codice
-
+    close(PIPE_server_to_forwardfacingradar_manager[WRITE]);
+    close(PIPE_server_to_forwardfacingradar_manager[READ]);
+    close(PIPE_server_to_frontwindshieldcamera_manager[WRITE]);
+    close(PIPE_server_to_frontwindshieldcamera_manager[READ]);
+    close(PIPE_server_to_parkassist_manager[WRITE]);
+    close(PIPE_server_to_parkassist_manager[READ]);
+    //hmiCommunication(); 
     FILE *ecuLog;
     char dataReceived[200];
     int updatedSpeed;
