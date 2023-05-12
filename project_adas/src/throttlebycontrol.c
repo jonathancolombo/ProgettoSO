@@ -32,7 +32,7 @@ pid_t pid;
 
 void openFile(char filename[], char mode[], FILE **filePointer);
 void sigTermHandler();
-int readFromSocket (int fd, char *str);
+int readFromSocket (int fileDescriptor, char *string);
 
 int main(void)
 {

@@ -1,4 +1,0 @@
-/snap/clion/235/bin/cmake/linux/x64/bin/cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_MAKE_PROGRAM=/snap/clion/235/bin/ninja/linux/x64/ninja -G Ninja -S /media/jonathan/HDD-Secondary/unifi/progetto-so/ProgettoSO/project_adas -B /media/jonathan/HDD-Secondary/unifi/progetto-so/ProgettoSO/project_adas/cmake-build-debug
--- Configuring done
--- Generating done
--- Build files have been written to: /media/jonathan/HDD-Secondary/unifi/progetto-so/ProgettoSO/project_adas/cmake-build-debug

@@ -1,6 +1,0 @@
-# ninja log v5
-0	66	1683608073469312767	CMakeFiles/project_adas.dir/src/hmi.c.o	7f2bcf41e3073d9c
-26	39	1683577120738980084	project_adas	3df0415339174148
-0	66	1683608073469312767	CMakeFiles/project_adas.dir/src/ecu.c.o	e65ead730155deed
-0	114	1683702922067477651	CMakeFiles/project_adas.dir/src/throttlebycontrol.c.o	6a0b608ec8f7afd1
-0	7	1683575643254857081	CMakeFiles/project_adas.dir/src/esempio-processi.c.o	d6aa77536ff1466e

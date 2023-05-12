@@ -22,7 +22,7 @@ pid_t fatherPID;
 pid_t attuatoriPid[3]; // 3 attuatori (steer by wire, throttle control, brake by wire
 
 // PID sensori
-pid_t sensoriPid[3] // 3 sensori (
+pid_t sensoriPid[3]; // 3 sensori (
 pid_t frontWindshieldCameraClientPid;
 pid_t forwardFacingRadarClientPid;
 
@@ -265,6 +265,12 @@ int main(int argc, char *argv[])
 
                                         } while (n > 0);
                                         return (n > 0);
+
+                                        if(checkFfrWarning(data) == 1)
+                                        {
+                                            managePericoloToBbw();
+                                        }
+		                                    
                                     }
                                 }
                                 else
@@ -292,6 +298,15 @@ int main(int argc, char *argv[])
 
 
 }
+
+
+void managePericoloToBbw()
+{
+	kill(attuatoriPid[2], SIGUSR1);
+	waitpid(attuatoriPid[2], NULL, 0);
+	kill(hmiPID, SIGUSR2); //comunico alla hmi di terminare l'intero albero di processi, lei esclusa, e di riavviare il sistema
+}
+
 // ARRIVATO FINO A QUI. ( CONTINUARE CON LA ECU)
 void serverStart()
 {

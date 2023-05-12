@@ -1,17 +1,32 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/un.h> /* For AFUNIX sockets */
 #include <string.h>
 #include <signal.h>
+#include <sys/wait.h>
 
 pid_t ecuProcessPID; // pid del processo ECU
 pid_t tailProcessPID; // pid del processo coda
+int started = 0;
 
 void typeStart(int argc, char *const *argv);
+void sigParkHandler();
+void sigWarningHandler();
 
 int main(int argc, char *argv[])
 {
-    typeStart(argc, argv);
+    /*
+    * Controlla la tipologia di AVVIO impostata e restituisce un errore
+     */
+
+    if ((argc < 2) || (strcmp(argv[1] , "ARTIFICIALE") != 0 && strcmp(argv[1] , "NORMALE") != 0))
+    {
+        printf("Inserisci il comando di avvio NORMALE o ARTIFICIALE");
+        exit(EXIT_FAILURE);
+    }
 
     // fork del processo ECU
     ecuProcessPID = fork();
@@ -44,6 +59,12 @@ int main(int argc, char *argv[])
         else
         {
             // 3 signal da fare
+            signal(SIGUSR1, sigParkHandler);
+            signal(SIGUSR2, sigWarningHandler);
+            signal(SIGINT, sigParkHandler);
+
+
+
             FILE *fileUtility = fopen("utility.data", "w");
             if (fileUtility == NULL)
             {
@@ -112,15 +133,19 @@ int main(int argc, char *argv[])
 
     return EXIT_SUCCESS;
 }
-/*
- * Controlla la tipologia di AVVIO impostata e restituisce un errore
- */
-void typeStart(int argc, char *const *argv) {
-    if ((argc < 2) || (strcmp(argv[1] , "ARTIFICIALE") != 0 && strcmp(argv[1] , "NORMALE") != 0))
-    {
-        printf("Inserisci il comando di avvio NORMALE o ARTIFICIALE");
-        exit(EXIT_FAILURE);
-    }
+
+
+void sigParkHandler() {
+    kill(-ecuProcessPID, SIGTERM);
+    kill(tailProcessPID, SIGTERM);
+    kill(0, SIGTERM);
+
 }
 
-
+void sigWarningHandler() {
+	signal(SIGUSR2, sigWarningHandler);
+	kill(-ecuProcessPID, SIGTERM);
+	recreateEcu();
+	printf("La macchina è stata arrestata per evitare un pericolo. \nPremi INIZIO per ripartire\n\n");
+	started = 0;
+}
