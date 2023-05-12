@@ -59,8 +59,14 @@ int PIPE_server_to_hmi_manager[2];
 int PIPE_server_to_parkassist_manager[2];
 
 int createSocketConnection(char *socketName);
-
+int checkFfrWarning(unsigned char *data);
 void serverStart();
+int readFromSocket (int fd, char *str);
+void openFile(char filename[], char mode[], FILE **filePointer);
+int extractString(char* data);
+int readFromPipe (int pipeFd, char *data);
+int isInByteArray(unsigned char *len2toFind, unsigned char *toSearch, int toSearchLen);
+
 
 int main(int argc, char *argv[])
 {
@@ -405,4 +411,67 @@ int createSocketConnection(char *socketName) {
         return result;
     }
     return socketFd;
+}
+
+int checkFfrWarning(unsigned char *data) {
+	const unsigned char warnings[][2] = {
+		{0xA0, 0x0F},
+		{0xB0, 0x72},
+		{0x2F, 0xA8},
+		{0x83, 0x59},
+		{0xCE, 0x23}
+	};
+	for(int i = 0; i < 5; i++) {
+		if(isInByteArray(warnings[i], data, 24) == 1) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+int readFromSocket (int fd, char *str) {
+	int n;
+	do {
+		n = read (fd, str, 1);
+	} while (n > 0 && *str++ != '\0');
+return (n > 0);
+}
+
+void openFile(char filename[], char mode[], FILE **filePointer) {
+	*filePointer = fopen(filename, mode);
+	if (*filePointer == NULL) {
+		printf("Errore nell'apertura del file");
+		exit(1);
+	}
+}
+
+int extractString(char* data) {//estrae l'incremento di velocita' dall'input inviato dall'ECU
+	char* updatedSpeed;
+	updatedSpeed = strtok (data," ");
+	if(strcmp(updatedSpeed, "#") == 0){
+		updatedSpeed = strtok (NULL, " ");
+		return atoi(updatedSpeed);
+	}else
+		return -1;
+}
+
+int readFromPipe (int pipeFd, char *data) {
+	int n;
+	do {
+		n = read (pipeFd, data, 1);
+	} while (n > 0 && *data++ != '\0');
+return (n > 0);
+}
+
+int isInByteArray(unsigned char *len2toFind, unsigned char *toSearch, int 		toSearchLen) {
+	int toFindLen = 2;
+	//printf("Lunghezza: sizeof(toSearch) = %ld\n", sizeof(toSearch));
+	//printf("Lunghezza: sizeof(toSearch[0]) = %ld\n", sizeof(toSearch[0]));
+	//printf("Lunghezza: %d\n", toSearchLen);
+	for (int i = 0; i + toFindLen <= toSearchLen; i++) {
+		if (len2toFind[0] == toSearch[i] && len2toFind[1] == toSearch[i+1]) {
+			return 1;
+		}
+	}
+	return 0;
 }

@@ -11,6 +11,7 @@
 pid_t ecuProcessPID; // pid del processo ECU
 pid_t tailProcessPID; // pid del processo coda
 int started = 0;
+char **g_argv;
 
 void typeStart(int argc, char *const *argv);
 void sigParkHandler();
@@ -18,6 +19,7 @@ void sigWarningHandler();
 
 int main(int argc, char *argv[])
 {
+    g_argv = argv;
     /*
     * Controlla la tipologia di AVVIO impostata e restituisce un errore
      */
@@ -148,4 +150,16 @@ void sigWarningHandler() {
 	recreateEcu();
 	printf("La macchina è stata arrestata per evitare un pericolo. \nPremi INIZIO per ripartire\n\n");
 	started = 0;
+}
+
+void recreateEcu() {
+	ecuProcessPID = fork();
+    if(ecuProcessPID<0) {
+        perror("fork");
+        exit(1);
+    }
+    if(ecuProcessPID == 0) {
+    	setpgid(0, 0);
+        execv("./ecu", g_argv);
+    }
 }
