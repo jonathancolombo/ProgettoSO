@@ -8,14 +8,18 @@
 #include <signal.h>
 #include <sys/wait.h>
 
+#define SIGSTART SIGUSR1
+#define SIGPARK SIGUSR1
+FILE *fileUtility;
+
 pid_t ecuProcessPID; // pid del processo ECU
 pid_t tailProcessPID; // pid del processo coda
 int started = 0;
 char **g_argv;
 
-void typeStart(int argc, char *const *argv);
 void sigParkHandler();
 void sigWarningHandler();
+void openFile(char filename[], char mode[], FILE **filePointer);
 
 int main(int argc, char *argv[])
 {
@@ -27,7 +31,7 @@ int main(int argc, char *argv[])
     if ((argc < 2) || (strcmp(argv[1] , "ARTIFICIALE") != 0 && strcmp(argv[1] , "NORMALE") != 0))
     {
         printf("Inserisci il comando di avvio NORMALE o ARTIFICIALE");
-        exit(EXIT_FAILURE);
+        //exit(EXIT_FAILURE);
     }
 
     // fork del processo ECU
@@ -36,15 +40,16 @@ int main(int argc, char *argv[])
     if (ecuProcessPID == -1)
     {
         perror("fork error");
-        exit (EXIT_FAILURE);
+        //exit (EXIT_FAILURE);
     } 
     else if (ecuProcessPID == 0)
     {
         // imposto il pgid ed eseguo una execv
         printf("Sono il processo figlio\n");
         setpgid(0, 0);
+        argv[0] = "./ecu";
         execv(argv[0], argv);
-        exit(EXIT_SUCCESS);
+        //exit(EXIT_SUCCESS);
     }
     else
     {
@@ -66,31 +71,32 @@ int main(int argc, char *argv[])
             signal(SIGINT, sigParkHandler);
 
 
+            openFile("utility.data", "w", &fileUtility);
 
-            FILE *fileUtility = fopen("utility.data", "w");
             if (fileUtility == NULL)
             {
                 perror("open file error!");
-                exit (EXIT_FAILURE);
+                //exit (EXIT_FAILURE);
             }
+
             fprintf(fileUtility, "%d\n", 0);
             fclose(fileUtility); // chiusura file Utility
 
-            FILE *fileEcu = fopen("ECU.log", "w");
+            openFile("ECU.log", "w", &fileUtility);
 
-            if (fileEcu == NULL)
+            if (fileUtility == NULL)
             {
                 perror("open file error!");
-                exit (EXIT_FAILURE);
+                //exit (EXIT_FAILURE);
             }
-            fprintf(fileEcu, "%d\n", 0);
-            fclose(fileEcu); // chiusura file ECU.log
+            fprintf(fileUtility, "%d\n", 0);
+            fclose(fileUtility); // chiusura file ECU.log
 
             printf("Ciao! Benvenuto nel simulatore di sistemi di guida autonoma. \nDigita INIZIO per avviare il veicolo,\no digita PARCHEGGIO per avviare la procedura di parcheggio e concludere il percorso.\n\n");
 
             // controllo comando d'input iniziale
             char input[30];
-            int started = 0;
+            started = 0;
             while(1)
             {
                 if(fgets(input, 30, stdin) != NULL)
@@ -100,7 +106,7 @@ int main(int argc, char *argv[])
                         if(strcmp(input, "INIZIO\n") == 0)
                         {
                             printf("Veicolo avviato\n");
-                            kill(ecuProcessPID, SIGUSR1);
+                            kill(ecuProcessPID, SIGSTART);
                             started = 1;
                         }
                         else if (strcmp(input, "PARCHEGGIO\n") == 0)
@@ -117,7 +123,7 @@ int main(int argc, char *argv[])
                         if(strcmp(input, "PARCHEGGIO\n") == 0)
                         {
                             printf("Sto fermando il veicolo...\n");
-                            kill(ecuProcessPID, SIGUSR1);
+                            kill(ecuProcessPID, SIGPARK);
                             started = 0;
                         }
                         else
@@ -132,24 +138,14 @@ int main(int argc, char *argv[])
         //printf("Sono il processo padre, il PID del figlio è %d\n", ecuProcessID);
         //exit(EXIT_SUCCESS);
     }
-
-    return EXIT_SUCCESS;
 }
 
 
 void sigParkHandler() {
-    kill(-ecuProcessPID, SIGTERM);
+    kill(ecuProcessPID, SIGTERM);
     kill(tailProcessPID, SIGTERM);
     kill(0, SIGTERM);
 
-}
-
-void sigWarningHandler() {
-	signal(SIGUSR2, sigWarningHandler);
-	kill(-ecuProcessPID, SIGTERM);
-	recreateEcu();
-	printf("La macchina è stata arrestata per evitare un pericolo. \nPremi INIZIO per ripartire\n\n");
-	started = 0;
 }
 
 void recreateEcu() {
@@ -162,4 +158,22 @@ void recreateEcu() {
     	setpgid(0, 0);
         execv("./ecu", g_argv);
     }
+}
+
+void sigWarningHandler() {
+	signal(SIGUSR2, sigWarningHandler);
+	kill(ecuProcessPID, SIGTERM);
+	recreateEcu();
+	printf("La macchina è stata arrestata per evitare un pericolo. \nPremi INIZIO per ripartire\n\n");
+	started = 0;
+}
+
+
+
+void openFile(char filename[], char mode[], FILE **filePointer) {
+	*filePointer = fopen(filename, mode);
+	if (*filePointer == NULL) {
+		printf("Errore nell'apertura del file");
+		exit(1);
+	}
 }

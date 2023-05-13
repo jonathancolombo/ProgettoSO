@@ -24,11 +24,14 @@ int socketFileDescriptor;
 FILE *fileLog;
 FILE *fileRead;
 
+unsigned char buffer[8]; // 8 = max byte
+
 void sigStartHandler();
 void sigStopHandler();
 void sigTermHandler();
 int createConnection(char *socketName);
 void openFile(char filename[], char mode[], FILE **filePointer);
+void init(char* modalita);
 
 int main(int argc, char *argv[])
 {
@@ -51,16 +54,27 @@ int main(int argc, char *argv[])
     {
         signal(SIGUSR1, sigStartHandler);
         signal(SIGTERM,sigTermHandler);
-        if (strcmp(argv[1], "NORMALE") == 0) {
-            openFile("/dev/urandom", "rb", &fileRead);
-        } else {
-            openFile("urandomARTIFICIALE.binary", "rb", &fileRead);
-        }
+        
+        init(argv[1]);
+        pause();
+    }
+
+}
+
+void init(char* modalita)
+{
+     if (strcmp(modalita, "NORMALE") == 0) 
+     {
+        openFile("/dev/urandom", "rb", &fileRead);
+        } 
+    else 
+    {
+        openFile("urandomARTIFICIALE.binary", "rb", &fileRead);
+    }
+        
         openFile("assist.log","w",&fileLog);
         while((socketFileDescriptor = createConnection("parkassistSocket")) < 0)
             sleep(1);
-    }
-
 }
 
 void sigStartHandler(){
@@ -69,8 +83,7 @@ void sigStartHandler(){
     kill(pidSurroundViewCamera,SIGUSR1);	// AVVIA SorroundViewWithCameras
     // parking readAndLog();
     printf("Inizio procedura di parcheggio\n");
-    unsigned char buffer[8]; // 8 = max byte
-    FILE *fileRead;
+
     for (int i = 0; i<30; i++){
         printf("\rParcheggio in corso: %d%%", (i + 1) * 100 / 30);
         fflush(stdout);
@@ -85,7 +98,7 @@ void sigStartHandler(){
 
         write(socketFileDescriptor, buffer, strlen(buffer) + 1);
 
-        for (int c = 0; c < 8; c++) {
+        for (int c = 0; c < 4; c++) {
             fprintf(fileLog, "%.2X", buffer[c]);
         }
         fprintf(fileLog, "\n");

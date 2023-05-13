@@ -28,14 +28,15 @@ sensori e attuatori.
 
 */
 
-
-#include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
-#include <fcntl.h>
 #include <signal.h>
-#include <sys/un.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/un.h> /* For AFUNIX sockets */
+#include <fcntl.h>
 
 void openFile(char filename[], char mode[], FILE **filePointer);
 void sigWarningHandler();
