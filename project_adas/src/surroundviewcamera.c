@@ -51,7 +51,7 @@ void start(char **mode) {
     } else {
         openFile("urandomARTIFICIALE.binary", "rb", &fileRead);
     }
-    openFile("cameras.log","w",&fileLog);
+    openFile("camera.log","w",&fileLog);
     while((socketFd = createConnection("svcSocket")) < 0)
         usleep(100000);
     pause();
