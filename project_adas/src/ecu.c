@@ -84,6 +84,17 @@ void managePericoloToBrakeByWire();
 
 int main(int argc, char *argv[])
 {
+    printf("\n");
+
+    printf("\n");
+
+    printf("\n");
+
+    printf("\n");
+
+    printf("\n");
+
+    printf("PROCESSO ECU\n");
     // primo segnale
     signal(SIGUSR1, sigstartHandler);
     hmiPID = getppid();
@@ -139,8 +150,10 @@ int main(int argc, char *argv[])
         close(PIPE_server_to_hmi_manager[WRITE]);
 
         // viene passato il comando tramite exec ed eseguito lo steer by wire
+        printf("Eseguo steer by wire con una execv\n");
         argv[0] = "./steerbywire";
         execv(argv[0],argv);
+        return;
     }
     else
     {
@@ -160,8 +173,10 @@ int main(int argc, char *argv[])
             close(PIPE_server_to_parkassist_manager[WRITE]);
             close(PIPE_server_to_hmi_manager[READ]);
             close(PIPE_server_to_hmi_manager[WRITE]);
+            printf("Eseguo throttle by control con una execv\n");
             argv[0] = "./throttlebycontrol";
             execv(argv[0],argv);
+            return;
         }
         else
         {

@@ -15,41 +15,61 @@ Ogni secondo, il componente stampa nel file di log steer.log: “NO ACTION”, �
  */
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <unistd.h>
-#include <sys/un.h>
-#include <sys/socket.h>
 #include <signal.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <sys/socket.h>
+#include <sys/un.h> /* For AFUNIX sockets */
+#include <fcntl.h>
 
+FILE* fileLog;
 int pipeArray[2];
 pid_t processWriterToLog;
 
 int readFromSocket (int , char *);
 void sigTermHandler();
-void openFile(char filename[], char mode[], FILE **filePointer);
 
 int main(int argc, char* argv[])
 {
+    printf("\n");
+
+    printf("\n");
+
+    printf("\n");
+
+    printf("\n");
+
+    printf("\n");
+
+    printf("PROCESSO STEER BY WIRE\n");
     int READ = 0;
     int WRITE = 1;
     int status = pipe(pipeArray);
+
+    printf("Controllo lo stato della pipe su steer by wire\n");
     if (status != 0)
     {
         printf("Error pipe!\n");
         return (EXIT_FAILURE);
     }
-    //fcntl(pfd[READ], F_SETFL, O_NONBLOCK); lettura non bloccante, intanto testare la lettura classica
-    char dataReceived[100];
-    for(;;)
-    {
-        read(pipeArray[READ], dataReceived, 100);
-        processWriterToLog = fork(); // processo figlio di scrittura su file log creato
-        if (processWriterToLog == 0)
-        {
-            close(pipeArray[READ]);
+    
+    printf("Faccio una read non bloccante su steer by wire\n");
+    fcntl(pipeArray[READ], F_SETFL, O_NONBLOCK); //lettura non bloccante, intanto testare la lettura classica
+    
+    printf("Creo il processo figlio che si preoccupa di scrivere su file di log le sterzate\n");
+    processWriterToLog = fork(); // creo un processo figlio che scrive su file di log
 
-            // inizializzazione socket per lettura dati
-            int serverFileDescriptor = 0, clientFileDescriptor = 0, serverLength = 0, clientLength = 0;
+    if (processWriterToLog == 0)
+    {
+        printf("Processo figlio steer by wire creato\n");
+        close(pipeArray[READ]); // chiudo la pipe in lettura
+
+        printf("Inizializzo la socket su steer by wire\n");
+
+        int serverFileDescriptor = 0, clientFileDescriptor = 0, serverLength = 0, clientLength = 0;
             struct sockaddr_un serverAddress; /*Server address */
             struct sockaddr* ptrServerSocket; /*Ptr to server address*/
 
@@ -72,9 +92,12 @@ int main(int argc, char* argv[])
             bind (serverFileDescriptor, ptrServerSocket, serverLength);
             listen (serverFileDescriptor, 1);
 
+            printf("Socket su steer by wire inizializzata\n");
+
             for(;;) // loop infinito che accetta possibili connessioni da parte di client
             {
                 clientFileDescriptor = accept(serverFileDescriptor, ptrClientSocket, &clientLength);
+                printf("Creo un processo figlio per leggere dalla socket su steer by wire\n");
                 if (fork() == 0)
                 {
                     char data[100];
@@ -91,35 +114,51 @@ int main(int argc, char* argv[])
                 }
 
             }
+    } 
+    else
+    {
+        signal(SIGTERM,sigTermHandler);
+        close(pipeArray[WRITE]);
+        char *direction;
+        
+        printf("Apro il file di log steer.log\n");
 
-            exit(EXIT_FAILURE);
-        } // da fare dopo
-        else
+        fileLog = fopen("steer.log", "w");
+
+        if (fileLog == NULL)
         {
-            signal(SIGTERM,sigTermHandler);
-            close(pipeArray[WRITE]);
-            char *direction;
-            FILE* fileLog;
-            //startLoop(); si inizia a scrivere sul file di log
-            openFile("steer.log", "w", &fileLog);
-            while(1) {
-                char sentData[30];
-                if (read(pipeArray[0], sentData, 30) > 0) {
-                    direction = sentData;
-                }
+            printf("Errore nell'apertura del file steer.log\n");
+            exit(EXIT_FAILURE);
+        }
+    
+        while(1) 
+        {
+            char sentData[30];
+            if (read(pipeArray[0], sentData, 30) > 0) 
+            {
+                direction = sentData;
+            }
 
-                if (strcmp(direction,"DESTRA") == 0 ||
-                    strcmp(direction, "SINISTRA") == 0) {
+            if (strcmp(direction,"DESTRA") == 0 || strcmp(direction, "SINISTRA") == 0) 
+            {
+                for (int i = 0; i<4; i++)
+                {
+                    printf("Scrivo sul file di log la sterzata\n");    
                     fprintf(fileLog,"STO GIRANDO A %s\n", direction);
                     fflush(fileLog);
-                    sleep(1);
-                } else {
-                    fprintf(fileLog, "NO ACTION\n");
-                    fflush(fileLog);
-                }
-                sleep(1);
+                    sleep(1);   
+                } 
+            } 
+            else 
+            {
+                fprintf(fileLog, "NO ACTION\n");
+                fflush(fileLog);
             }
+
+            sleep(1);
         }
+
+        close(fileLog);
     }
 
 }
@@ -135,14 +174,6 @@ int readFromSocket (int fd, char *str) {
 void sigTermHandler() {
     signal(SIGTERM,SIG_DFL);
     kill(processWriterToLog,SIGTERM);
-    exit(0);
+    exit(EXIT_SUCCESS);
 }
 
-
-void openFile(char filename[], char mode[], FILE **filePointer) {
-    *filePointer = fopen(filename, mode);
-    if (*filePointer == NULL) {
-        printf("Errore nell'apertura del file");
-        exit(1);
-    }
-}

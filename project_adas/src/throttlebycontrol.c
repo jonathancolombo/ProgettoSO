@@ -20,64 +20,102 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h> /* For AFUNIX sockets */
 #include <fcntl.h>
+#include <sys/wait.h>
+
 
 int deltaSpeed;
 FILE* fileLog;
 int status;	//pipe status
 int pipeArray[2]; //pipe array
-pid_t pid;
+pid_t pidChildWriter;
 
 void openFile(char filename[], char mode[], FILE **filePointer);
 void sigTermHandler();
 int readFromSocket (int fileDescriptor, char *string);
+int extractString(char* data);
 
-int main(void)
+int main(int argc, char* argv[])
 {
+    printf("\n");
+
+    printf("\n");
+
+    printf("\n");
+
+    printf("\n");
+
+    printf("\n");
+
+    printf("PROCESSO THROTTLE BY CONTROL\n");
+
     int READ = 0;
     int WRITE = 1;
 
     status = pipe(pipeArray);
+
     if(status != 0)
     {
         printf("Error with pipe\n");
         exit(EXIT_FAILURE);
     }
+
     fcntl(pipeArray[READ], F_SETFL, O_NONBLOCK);	//rende la read non bloccante
-    pid = fork();							//crea un processo figlio di scrittura su file di log
-    if(pid == 0)
+    printf("Creo un processo figlio di scrittura sul file di log throttle.log\n");
+    pidChildWriter = fork();							//crea un processo figlio di scrittura su file di log
+    if(pidChildWriter == 0)
     {
+        printf("Processo figlio di scrittura creato correttamente\n");
         close(pipeArray[WRITE]);
 
-        openFile("throttle.log", "w", &fileLog);
+
+        printf("Tento di aprire il file di log throttle.log\n");
+        fileLog = fopen("throttle.log", "w");
+        
+        if (fileLog == NULL) 
+        {
+            printf("Errore nell'apertura del file throttle.log\n");
+            exit(EXIT_FAILURE);
+        }
 
         for(;;)
         {
             int sentData;									//variabile d'appoggio per la lettura da pipe
-            if (read(pipeArray[0], &sentData, 30) > 0) {
+            if (read(pipeArray[0], sentData, 30) > 0) 
+            {
                 deltaSpeed = sentData;
             }
-            if (deltaSpeed > 0) {
+            if (deltaSpeed > 0) 
+            {
+                printf("Stampo sul file di log di throttle by control, AUMENTO 5\n");
                 fprintf(fileLog, "AUMENTO 5\n");
                 fflush(fileLog);
                 deltaSpeed = deltaSpeed - 5;
-            } else {
+            } 
+            else 
+            {
+                printf("Stampo sul file di log di throttle by control, NO ACTION\n");
                 fprintf(fileLog, "NO ACTION\n");
                 fflush(fileLog);
             }
             sleep(1);
         }
+
         close(pipeArray[READ]);
+        close(fileLog);
         exit(EXIT_SUCCESS);
     }
     else // il padre rimane in ascolto sulla socket
     {
+        printf("Processo figlio non creato\n");
         signal(SIGTERM, sigTermHandler);
         close(pipeArray[READ]);
         // configurazione della socket per comunicazione client server
         //initSocket();						//il padre rimane in ascolto sulla socket
+        printf("Inizializzo la socket su throttle by control\n");
         int serverFileDescriptor, clientFileDescriptor, serverLength, clientLength;
         struct sockaddr_un serverAddress; /*Server address */
         struct sockaddr* ptrSocketServerAddress; /*pointer to server address*/
@@ -95,31 +133,30 @@ int main(void)
         serverFileDescriptor = socket (AF_UNIX, SOCK_STREAM, 0);
         serverAddress.sun_family = AF_UNIX;
 
+
         strcpy (serverAddress.sun_path, socketName);
         unlink (socketName);
         bind (serverFileDescriptor, ptrSocketServerAddress, serverLength);
         listen (serverFileDescriptor, 1);
 
+        printf("Socket inizializzata su throttle by control\n");
         int speed = 0;
 
         for (;;)
         {/* Loop forever */ /* Accept a client connection */
             clientFileDescriptor = accept (serverFileDescriptor, ptrSocketClientAddress, &clientLength);
+            printf("Creo il processo figlio per leggere i dati dalla socket\n");
             if (fork() == 0)
             { /* Create child */
                 char data[30];
+                printf("Finchè ci sono dati provenienti dalla socket...");
                 while (readFromSocket(clientFileDescriptor, data)) // finchè ci sono dati dai client
                 {
-                    //startElaboration(data);
-                    char* acceleration;
-                    acceleration = strtok (data," ");
-                    acceleration = strtok (NULL, " ");
-                    speed = (int) strtol(acceleration, NULL, 10);
+                    deltaSpeed = extractString(strdup(data));
                     write(pipeArray[WRITE], &speed, 30);
                 }
-
                 close (clientFileDescriptor); /* Close the socket */
-                exit (/* EXIT_SUCCESS */ EXIT_SUCCESS); /* Terminate */
+                exit (EXIT_SUCCESS); /* Terminate */
             }
             else
             {
@@ -129,19 +166,17 @@ int main(void)
     }
 }
 
-void openFile(char filename[], char mode[], FILE **filePointer) {
-    *filePointer = fopen(filename, mode);
-    if (*filePointer == NULL) {
-        printf("Errore nell'apertura del file");
-        exit(1);
-    }
+int extractString(char* data) {							//estrae l'incremento di velocita' dall'input inviato dall'ECU
+	char* acceleration;
+	acceleration = strtok (data," ");
+	acceleration = strtok (NULL, " ");					//split tramite " "
+	return (int) strtol(acceleration, NULL, 10);		//converte la stringa in intero
 }
-
 
 void sigTermHandler()
 {
-    kill(pid, SIGTERM);
-    exit(0);
+    kill(pidChildWriter, SIGTERM);
+    exit(EXIT_SUCCESS);
 }
 
 int readFromSocket (int fd, char *str) {

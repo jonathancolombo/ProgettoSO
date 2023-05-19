@@ -7,5 +7,4 @@ $(OUTPUT_DIR)/%: %.c
 	gcc -o $@ $<
 clean:
 	rm -rf $(OUTPUT_DIR)
-
 .PHONY: all clean
