@@ -28,6 +28,7 @@ void openFile(char filename[], char mode[], FILE **filePointer);
 
 int main(int argc, char *argv[])
 {
+
     g_argv = argv;
     /*
     * Controlla la tipologia di AVVIO impostata e restituisce un errore
@@ -39,6 +40,8 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
+    printf("Imposto i permessi al massimo su folder bin\n");
+    
     // fork del processo ECU
     ecuProcessPID = fork();
     // controllo se il processo ECU è stato creato correttamente

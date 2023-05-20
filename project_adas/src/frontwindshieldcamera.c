@@ -10,36 +10,72 @@ I dati inviati sono inoltre registrati nel file di log camera.log.
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <signal.h>
 #include <string.h>
+#include <unistd.h>
+#include <signal.h>
+#include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-#include <unistd.h>
 
-FILE* fileLog;
+FILE *fileLog;
 FILE *fileToRead;
-int socketFileDescriptor = 0;
-long readPosition = 0;
+int socketFileDescriptor;
+long readPosition;
 
 void openFile(char filename[], char mode[], FILE **filePointer);
 void sigTermHandler();
-char* readLine(FILE *filePointer);
+char* readLine(FILE*);
 int createConnection(char *socketName);
 
 int main(int argc, char *argv[])
 {
+    printf("\n");
+
+    printf("\n");
+
+    printf("\n");
+
+    printf("\n");
+
+    printf("\n");
+
+    printf("PROCESSO FRONT WIND SHIELD CAMERA\n");
     signal(SIGTERM, sigTermHandler);
-    openFile("frontCamera.data","r", &fileToRead);
-    openFile("camera.log", "w", &fileLog);
+
+    printf("Tento di aprire il file frontCamera.data \n");
+    fileToRead = fopen("frontCamera.data", "r");
+    if (fileToRead ==  NULL)
+    {
+        printf("Errore nell'apertura del file frontCamera.data\n");
+        exit(EXIT_FAILURE);
+    }
+
+    printf("Tento di aprire il file utility.data \n");
+    fileLog = fopen("utility.data", "w");
+    if (fileLog == NULL)
+    {
+        printf("Errore nell'apertura del file utility.data\n");
+        exit(EXIT_FAILURE);
+    }
+
     // aggiornare il puntatore di lettura
     FILE *fileUtility;
-    openFile("utility.data", "r", &fileUtility);
+    printf("Tento di aprire il file utility.data in lettura per l'aggiornamento di posizione del puntatore\n");
+    fileUtility = fopen("utility.data", "r");
+    if (fileUtility == NULL)
+    {
+        printf("Errore nell'apertura del file utility.data\n");
+        exit(EXIT_FAILURE);
+    }    
+
+    printf("Aggiorno la posizione del puntatore\n");
     char *buffer;
     buffer = readLine(fileUtility);
     readPosition = atol(buffer);
     fclose(fileUtility);
     fseek(fileToRead, readPosition, SEEK_SET);
 
+    printf("Apro la connessione con la socket\n");
     while(socketFileDescriptor = createConnection("forwardingWindShieldCamera") < 0)
     {
         sleep(1);
@@ -48,14 +84,15 @@ int main(int argc, char *argv[])
     char lineaLetta[100];
     for(;;)
     {
+        printf("Leggo la linea \n");
         char *linea = readLine(fileToRead);
-        //sendToSocket(socketFd, linea); la send = write
+        printf("La mando sulla socket\n");
         write(socketFileDescriptor, linea, strlen(linea)+1);
         fprintf(fileLog, "%s\n",linea);
         fflush(fileLog);
+        printf("Fatto\n");
         sleep(1);
     }
-    return EXIT_SUCCESS;
 }
 
 
@@ -68,7 +105,7 @@ void sigTermHandler() {
     fprintf(fileUtility, "%ld\n",readPosition);
     fclose(fileUtility);
     fclose(fileToRead);
-    exit(0);
+    exit(EXIT_SUCCESS);
 }
 
 
@@ -82,22 +119,26 @@ void openFile(char filename[], char mode[], FILE **filePointer) {
 
 char* readLine(FILE *filePointer){
     int maximumLineLength = 8;
-    char *lineBuffer = (char *)malloc(sizeof(char) * maximumLineLength);
+    char *lineBuffer = (char *) malloc(sizeof(char) * maximumLineLength);
     if (lineBuffer == NULL) {
         printf("Errore nell'allocare la memoria del buffer.\n");
         exit(1);
     }
     char ch = getc(filePointer);
     int count = 0;
-    while ((ch != '\n') && (ch != EOF)) {
+    while ((ch != '\n') && (ch != EOF)) 
+    {
         lineBuffer[count] = ch;
         count++;
         ch = getc(filePointer);
     }
+    printf("Linea letta\n");
     return lineBuffer;
 }
 
-int createConnection(char *socketName){
+int createConnection(char *socketName)
+{
+    printf("Inizializzo la socket\n");
     int socketFd, serverLen;
     struct sockaddr_un serverUNIXAddress;
     struct sockaddr* serverSockAddrPtr;
@@ -107,8 +148,10 @@ int createConnection(char *socketName){
     serverUNIXAddress.sun_family = AF_UNIX; /* Server domain */
     strcpy (serverUNIXAddress.sun_path, socketName);/*Server name*/
     int result = connect(socketFd, serverSockAddrPtr, serverLen);
-    if(result < 0){
+    if(result < 0)
+    {
         return result;
     }
+    printf("Socket connessa\n");
     return socketFd;
 }

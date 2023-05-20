@@ -1,10 +1,32 @@
-OUTPUT_DIR := bin
-SRCS := frontwindshieldcamera.c forwardingfacingradar.c surroundviewcamera.c parkassist.c steerbywire.c brakebywire.c throttlebycontrol.c ecu.c hmi.c
-TARGETS := $(patsubst %.c,$(OUTPUT_DIR)/%,$(SRCS))
-all: $(TARGETS)
-$(OUTPUT_DIR)/%: %.c 
-	mkdir -p $(OUTPUT_DIR) 
-	gcc -o $@ $<
-clean:
-	rm -rf $(OUTPUT_DIR)
-.PHONY: all clean
+rmAllLog:
+	rm ECU.log
+	rm brake.log
+	rm cameras.log
+	rm radar.log
+	rm steer.log
+	rm throttle.log
+	rm utility.data
+	rm assist.log
+	echo "Tutti i file di log generati sono stati cancellati."
+rmAllMake: 
+	rm frontwindshieldcamera
+	rm forwardingfacingradar
+	rm surroundviewcamera
+	rm parkassist
+	rm steerbywire
+	rm brakebywire
+	rm throttlebycontrol
+	rm ecu
+	rm hmi
+	echo "Tutti gli eseguibili sono stati rimossi."
+allMake:	
+	gcc frontwindshieldcamera.c -o frontwindshieldcamera
+	gcc forwardingfacingradar.c -o forwardingfacingradar
+	gcc surroundviewcamera.c -o surroundviewcamera
+	gcc parkassist.c -o parkassist
+	gcc steerbywire.c -o steerbywire
+	gcc brakebywire.c -o brakebywire
+	gcc throttlebycontrol.c -o throttlebycontrol
+	gcc ecu.c -o ecu
+	gcc hmi.c -o hmi
+	@echo "Tutti i file sono stati creati correttamente."

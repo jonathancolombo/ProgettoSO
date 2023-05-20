@@ -81,6 +81,7 @@ int main(int argc, char* argv[])
             exit(EXIT_FAILURE);
         }
 
+        printf("File throttle.log aperto correttamente\n");
         for(;;)
         {
             int sentData;									//variabile d'appoggio per la lettura da pipe

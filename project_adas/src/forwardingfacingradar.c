@@ -28,39 +28,76 @@ void sigTermHandler();
 void openFile(char filename[], char mode[], FILE **filePointer);
 int createConnection(char *socketName);
 
-FILE *filePointer;
-FILE *logFilePointer;
+FILE *fileRead;
+FILE *fileRadarLog;
 int socketFileDescriptor = 0;
+unsigned char buffer[24];
 
 int main(int argc, char **argv)
 {
+    printf("\n");
+
+    printf("\n");
+
+    printf("\n");
+
+    printf("\n");
+
+    printf("\n");
+
+    printf("PROCESSO FORWARD FACING RADAR\n");
     signal(SIGTERM, sigTermHandler);
     if (strcmp(argv[1], "NORMALE") == 0)
     {
-        openFile("/dev/random", "rb", &filePointer);
+        printf("Tento di aprire il file dev/urandom in lettura \n");
+        fileRead = fopen("/dev/urandom","rb");
+        if (fileRead == NULL)
+        {
+            printf("Errore nell'apertura del file /dev/urandom\n");
+            exit(EXIT_FAILURE);
+        }
+        printf("File /dev/urandom aperto correttamente\n");
     }
     else
     {
-        // avvia lettura da ARTIFICIALE
-        openFile("randomARTIFICIALE.binary", "rb", &filePointer);
+        printf("Tento di aprire il file urandomARTIFICIALE.binary in lettura \n");
+        fileRead = fopen("urandomARTIFICIALE.binary","rb");
+        if (fileRead == NULL)
+        {
+            printf("Errore nell'apertura del file urandomARTIFICIALE.binary\n");
+            exit(EXIT_FAILURE);
+        }
+        printf("File urandomARTIFICIALE.binary aperto correttamente\n");
     }
-    openFile("radar.log", "w", &logFilePointer);
+    
+    printf("Tento di aprire il file radar.log in scrittura\n");
+    fileRadarLog = fopen("radar.log", "w");
+    if (fileRadarLog == NULL)
+    {
+        printf("Errore nell'apertura del file radar.log\n");
+        exit(EXIT_FAILURE);
+    }
+    printf("File radar.log aperto correttamente\n");
+    
+    while((socketFileDescriptor = createConnection("frontfacingradarSocket")) < 0)
+    {
+        sleep(1);
+    }
 
-    while((socketFileDescriptor = createConnection("ffrSocket")) < 0)
-        usleep(100000); //0.1 sec
     int elementsRead;
-    unsigned char buffer[24];
     while(1)
     {
-        elementsRead = fread(buffer, 1, 8, filePointer);
+        elementsRead = fread(buffer, 1, 8, fileRead);
         if (elementsRead == 8) {
+            printf("Invio dati alla socket\n");
             write(socketFileDescriptor, buffer, strlen(buffer)+1);
+            printf("Scrivo sul file radar.log\n");
             for (int c = 0; c < 8; c++)
             {
-                fprintf(logFilePointer, "%.2X", buffer[c]);
+                fprintf(fileRadarLog, "%.2X", buffer[c]);
             }
-            fprintf(logFilePointer, "\n");
-            fflush(logFilePointer);
+            fprintf(fileRadarLog, "\n");
+            fflush(fileRadarLog);
         }
         sleep(2);
     }
@@ -69,9 +106,9 @@ int main(int argc, char **argv)
 
 
 void sigTermHandler() {
-    fclose(filePointer);
-    fclose(logFilePointer);
-    exit(0);
+    fclose(fileRead);
+    fclose(fileRadarLog);
+    exit(EXIT_SUCCESS);
 }
 
 void openFile(char filename[], char mode[], FILE **filePointer) {

@@ -15,7 +15,7 @@
 #include <fcntl.h>
 
 // ecu client e server arrays
-int ecuServerSocketArray[5];
+int ecuServerSocketArray[4];
 int ecuClientSocketArray[3]; // throttle control = 0, brake by wire = 1, steer by wire = 2
 
 // dichiarazioni PID hmi
@@ -52,7 +52,7 @@ int currentSpeed = 0;
 char sockets_name[][50]={
 "frontfacingradarSocket",
 "parkassistSocket",
-"frontwindshieldSocket",
+"frontwindshieldcameraSocket",
 "surroundviewcameraSocket"
 };
 
@@ -195,6 +195,7 @@ int main(int argc, char *argv[])
                 close(PIPE_server_to_hmi_manager[WRITE]);
                 argv[0] = "./brakebywire";
                 execv(argv[0],argv);
+                return;
             }
             else
             {
@@ -211,24 +212,37 @@ int main(int argc, char *argv[])
                     //close(PIPE_server_to_bs_manager[READ]);
                     close(PIPE_server_to_frontwindshieldcamera_manager[WRITE]);
                     // ecuFwcClient(); qua sotto
+                    printf("Creo le socket connection\n");
                     while((ecuClientSocketArray[0] = createSocketConnection("throttlebycontrolSocket")) < 0) //attende di connettersi alle socket degli attuatori
-                        usleep(100000);
-
+                        {
+                            sleep(1);
+                        }
+                    printf("Socket in ascolto throttle by control\n");
                     while ((ecuClientSocketArray[1] = createSocketConnection("brakebywireSocket")) < 0)
-                        usleep(100000);
-
+                        {
+                            sleep(1);
+                        }
+                    printf("Socket in ascolto brake by wire\n");
                     while ((ecuClientSocketArray[2] = createSocketConnection("steerbywireSocket")) < 0)
-                        usleep(100000);
+                        {
+                            sleep(1);
+                        }
 
+                    printf("Socket in ascolto steer by wire\n");
                     char dataReceived[100];
                         
                     for(;;)
                     {
+                        sleep(1);
+                        printf("Leggo il comando ricevuto da frontwindshiel camera\n");
                         read(PIPE_server_to_frontwindshieldcamera_manager[READ], dataReceived, 100);
                         char command[30];
+                        printf("Comando ricevuto %s\n", dataReceived);
+                        sleep(1);
                         sprintf(command, "%s", "NO COMMAND");
                         if (strcmp(dataReceived, "SINISTRA")==0 || strcmp(dataReceived, "DESTRA") ==0)
                         {
+                            printf("Comando di sterzata \n");
                             sprintf(command, "%s", dataReceived);
                             // invio dati a steer by wire
                             printf("Invio i dati a steer by wire\n");
@@ -247,13 +261,15 @@ int main(int argc, char *argv[])
                             int newSpeed = atoi(dataReceived); // converte da stringa a intero
                             if (newSpeed < speed)
                             {
-                                sprintf(command, "%s%d", "FRENA", (speed - newSpeed));
+                                printf("Rallenta velocità\n");
+                                sprintf(command, "%s%d", "FRENA ", (speed - newSpeed));
                                 speed = newSpeed;
                                 write(ecuClientSocketArray[1], command, strlen(command) + 1);
                             }
                             else if (newSpeed > speed)
                             {
-                                sprintf(command, "%s%d", "INCREMENTO", (speed + newSpeed));
+                                printf("Incrementa velocità\n");
+                                sprintf(command, "%s%d", "INCREMENTO ", (speed + newSpeed));
                                 write(ecuClientSocketArray[0], command, strlen(command) + 1);
                             }
                             char updatedSpeed[10];
@@ -282,7 +298,7 @@ int main(int argc, char *argv[])
                         close(PIPE_server_to_frontwindshieldcamera_manager[READ]);
                         argv[0] = "./frontwindshieldcamera";
                         execv(argv[0], argv);
-                        //return;
+                        return;
                     }
                     else
                     {
@@ -301,6 +317,7 @@ int main(int argc, char *argv[])
                             close(PIPE_server_to_frontwindshieldcamera_manager[READ]);
                             argv[0] = "./forwardingfacingradar";
                             execv(argv[0],argv);
+                            return;
                         }
                         else
                         {
@@ -319,6 +336,7 @@ int main(int argc, char *argv[])
                                 close(PIPE_server_to_frontwindshieldcamera_manager[READ]);
                                 argv[0] = "./parkassist";
                                 execv(argv[0], argv);
+                                return;
                             }
                             else
                             {
@@ -375,7 +393,6 @@ int main(int argc, char *argv[])
     pause(); //blocca il processo
     //la ecu esegue le sue funzioni normali con &argv[1]
 
-
 }
 
 
@@ -413,7 +430,7 @@ void serverStart()
                         printf("Invio i dati a forwardfacingradar tramite socket dalla ecu\n");
                         write(PIPE_server_to_forwardfacingradar_manager[WRITE], str, strlen(str)+1);
                     }else if(strcmp(sockets_name[i], "parkassistSocket") == 0){
-                        printf("Invi i dati a parkassist tramite socket dalla ecu\n");
+                        printf("Invio i dati a parkassist tramite socket dalla ecu\n");
                         write(PIPE_server_to_parkassist_manager[WRITE], str, strlen(str)+1);
                     }
                 }
