@@ -10,7 +10,7 @@ rmAllLog:
 	echo "Tutti i file di log generati sono stati cancellati."
 rmAllMake: 
 	rm frontwindshieldcamera
-	rm forwardingfacingradar
+	rm forwardfacingradar
 	rm surroundviewcamera
 	rm parkassist
 	rm steerbywire
@@ -21,7 +21,7 @@ rmAllMake:
 	echo "Tutti gli eseguibili sono stati rimossi."
 allMake:	
 	gcc frontwindshieldcamera.c -o frontwindshieldcamera
-	gcc forwardingfacingradar.c -o forwardingfacingradar
+	gcc forwardfacingradar.c -o forwardfacingradar
 	gcc surroundviewcamera.c -o surroundviewcamera
 	gcc parkassist.c -o parkassist
 	gcc steerbywire.c -o steerbywire

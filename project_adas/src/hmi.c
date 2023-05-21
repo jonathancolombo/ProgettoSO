@@ -40,7 +40,6 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    printf("Imposto i permessi al massimo su folder bin\n");
     
     // fork del processo ECU
     ecuProcessPID = fork();
@@ -116,7 +115,7 @@ int main(int argc, char *argv[])
             fprintf(fileEcuLog, "%d\n", 0);
             printf("Chiudo il file di Log della ECU\n");
             fclose(fileEcuLog); // chiusura file ECU.log
-                        
+            // se nel caso fosse riaperto, usare modalità a = append             
 
             printf("Ciao! Benvenuto nel simulatore di sistemi di guida autonoma. \nDigita INIZIO per avviare il veicolo,\no digita PARCHEGGIO per avviare la procedura di parcheggio e concludere il percorso.\n\n");
 
@@ -166,7 +165,7 @@ int main(int argc, char *argv[])
         printf("Sono il processo padre, il PID del figlio è %d\n", ecuProcessPID);
         
     }
-    exit(EXIT_SUCCESS);
+    return;
 }
 
 
@@ -175,6 +174,15 @@ void sigParkHandler() {
     kill(tailProcessPID, SIGTERM);
     kill(0, SIGTERM);
 
+}
+
+
+void sigWarningHandler() {
+	signal(SIGWARNING, sigWarningHandler);
+	kill(-ecuProcessPID, SIGTERM);
+	recreateEcu();
+	printf("La macchina è stata arrestata per evitare un pericolo. \nPremi INIZIO per ripartire\n");
+	started = 0;
 }
 
 void recreateEcu() {
@@ -189,12 +197,3 @@ void recreateEcu() {
         execv("./ecu", g_argv);
     }
 }
-
-void sigWarningHandler() {
-	signal(SIGWARNING, sigWarningHandler);
-	kill(-ecuProcessPID, SIGTERM);
-	recreateEcu();
-	printf("La macchina è stata arrestata per evitare un pericolo. \nPremi INIZIO per ripartire\n");
-	started = 0;
-}
-

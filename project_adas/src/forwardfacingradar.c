@@ -79,7 +79,7 @@ int main(int argc, char **argv)
     }
     printf("File radar.log aperto correttamente\n");
     
-    while((socketFileDescriptor = createConnection("frontfacingradarSocket")) < 0)
+    while((socketFileDescriptor = createConnection("forwardfacingradarSocket")) < 0)
     {
         sleep(1);
     }
