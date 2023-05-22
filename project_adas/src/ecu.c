@@ -412,7 +412,7 @@ void serverStart()
                 socketFileDescriptor = accept (ecuServerSocketArray[i], ptrClientAddress, &clientLength);
                 char str[200];
                 while(readFromSocket(socketFileDescriptor, str)){
-                    if(strcmp(sockets_name[i], "frontwindshieldSocket")== 0){//controlla che figlio è
+                    if(strcmp(sockets_name[i], "frontwindshieldcameraSocket")== 0){//controlla che figlio è
                     printf("Invio i dati a frontwindshield tramite socket dalla ecu\n");
                         write(PIPE_server_to_frontwindshieldcamera_manager[WRITE], str, strlen(str)+1);
                     } //Invia alla pipe che gestisce gli fwc.

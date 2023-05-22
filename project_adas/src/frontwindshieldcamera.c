@@ -76,7 +76,7 @@ int main(int argc, char *argv[])
     fseek(fileToRead, readPosition, SEEK_SET);
 
     printf("Apro la connessione con la socket\n");
-    while(socketFileDescriptor = createConnection("forwardingWindShieldCamera") < 0)
+    while(socketFileDescriptor = createConnection("frontwindshieldcameraSocket") < 0)
     {
         sleep(1);
     }
