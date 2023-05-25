@@ -37,9 +37,18 @@ sensori e attuatori.
 #include <sys/socket.h>
 #include <sys/un.h> /* For AFUNIX sockets */
 #include <fcntl.h>
-
+#include <time.h>
+#include <stdarg.h>
+#include <sys/stat.h>
 #define SIGPARK SIGUSR1
 #define SIGWARNING SIGUSR1
+
+// new functions
+void handleStop();
+int openPipeOnRead(char *pipeName);
+int readLine(int fileDescriptor, char *str);
+void formattedTime(char *timeBuffer);
+void writeMessage(FILE *fp, const char * format, ...);
 
 void openFile(char filename[], char mode[], FILE **filePointer);
 void sigWarningHandler();
@@ -53,7 +62,7 @@ int status;
 pid_t  pid;
 pid_t ecuPid;
 
-FILE* fileLog;
+FILE *fileLog;
 char *command;
 
 int deltaSpeed;
@@ -73,18 +82,7 @@ int main(void)
     printf("\n");
 
     printf("PROCESSO STEER BY WIRE\n");
-    
-    printf("Recuper il pid della ECU\n");
-    ecuPid = getppid();
-
-    int status = pipe(pipeArray); // pipe status
-    
-    if (status != 0) // controllo dello stato della pipe
-    {
-        printf("Errore sullo stato della pipe\n");
-        printf("Error with pipe\n");
-        exit(EXIT_FAILURE);
-    }
+    signal(SIGTSTP, handleStop);
 
     printf("Tento di aprire il file brake.log in scrittura\n");
     fileLog = fopen("brake.log", "w");
@@ -98,107 +96,72 @@ int main(void)
     printf("File di log aperto correttamente\n");
     
     printf("Faccio una read non bloccante dalla pipe\n");
-    fcntl(pipeArray[0], F_SETFL, O_NONBLOCK);	//rende la read non bloccante (da studiare a fondo il funzionamento di questa API)
-    printf("Creo un processo figlio\n");
-    pid = fork();					//crea un processo figlio di scrittura
-    if (pid == 0)
+    int ecuFileDescriptor = openPipeOnRead("../ipc/brakePipe");
+    char command[16];
+    for(;;)
     {
-        printf("Processo figlio generato correttamente\n");
-        close(pipeArray[WRITE]); // chiude il processo pipe di scrittura
-        
-        for (;;)
+        printf("Leggo una linea\n");
+        readLine(ecuFileDescriptor, command);
+        if (strncmp(command, "FRENO", 5) == 0)
         {
-            int sentData;
-            if (read(pipeArray[READ], &sentData, sizeof(sentData)) > 0)
-            {
-                deltaSpeed = sentData;
-            }
-            if (deltaSpeed > 0)
-            {
-                printf("Stampo sul file di log FRENO 5\n");
-                fprintf(fileLog, "FRENO 5\n");
-                fflush(fileLog);
-                deltaSpeed = deltaSpeed - 5;
-            }
-            else
-            {
-                printf("Stampo sul file di log NO ACTION\n");
-                fprintf(fileLog, "NO ACTION\n");
-                fflush(fileLog);
-            }
+            int speed = atoi(command + 6);
+            writeMessage(fileLog, "FRENO %d", speed);
+        }
+    }
+
+    fclose(fileLog);
+    exit(EXIT_SUCCESS);
+}
+
+void handleStop() 
+{
+    writeMessage(fileLog, "ARRESTO AUTO");
+}
+
+int openPipeOnRead(char *pipeName)
+{
+    int fileDescriptor;
+    do
+    {
+        fileDescriptor = open(pipeName, O_RDONLY); // Opening named pipe for write
+        if (fileDescriptor == -1)
+        {
+            printf("Pipename:%s non trovata. Riprova ancora...\n", pipeName);
             sleep(1);
         }
+    } while (fileDescriptor == -1);
+    return fileDescriptor;
+}
 
-        printf("Chiudo la pipe in read e il file brake.log\n");
-        close(pipeArray[READ]); // chiude il processo pipe di lettura
-        //close(fileLog);
-        return EXIT_FAILURE;
-    }
-    else
-    {
+int readLine(int fileDescriptor, char *str)
+{
+	int n;
+	do {
+		n = read (fileDescriptor, str, 1);
+	} while (n > 0 && *str++ != '\0');
+    return (n > 0);
+}
 
-        signal(SIGWARNING, sigWarningHandler);
-        signal(SIGTERM, sigTermHandler);
-        close(pipeArray[READ]);
-        //initSocket();					//il padre rimane in ascolto sulla socket
+void formattedTime(char *timeBuffer) 
+{
+    time_t rawTime;
+    struct tm *info;
+    time(&rawTime);
+    info = localtime(&rawTime);
+    strftime(timeBuffer,256,"%x - %X", info);
+}
 
-        printf("Inizializzo la socket su brake by wire\n");
-        int serverFileDescriptor, clientFileDescriptor, serverLength, clientLength;
-        struct sockaddr_un serverAddress; /*Server address */
-        struct sockaddr* ptrServerAddress; /*Ptr to server address*/
-
-        struct sockaddr_un clientAddress; /*Client address */
-        struct sockaddr* clientSockAddrPtr;/*Ptr to client address*/
-
-        ptrServerAddress = (struct sockaddr*) &serverAddress;
-        serverLength = sizeof (serverAddress);
-
-        clientSockAddrPtr = (struct sockaddr*) &clientAddress;
-        clientLength = sizeof (clientAddress);
-
-        serverAddress.sun_family = AF_UNIX;
-
-        char* socketName = "brakebywireSocket";
-
-        serverFileDescriptor = socket (AF_UNIX, SOCK_STREAM, 0);
-        strcpy (serverAddress.sun_path, socketName);
-        unlink (socketName);
-
-        bind (serverFileDescriptor, ptrServerAddress, serverLength);
-        listen (serverFileDescriptor, 2);
-
-        printf("Server in ascolto....\n");
-
-        while (1)
-        {/* Loop forever */ /* Accept a client connection */
-            clientFileDescriptor = accept (serverFileDescriptor, clientSockAddrPtr, &clientLength);
-            if (fork () == 0)
-            { /* Create child */
-                printf("Figlio creato\n");
-                char data[100];
-                while (readFromSocket(clientFileDescriptor, data))
-                {
-                    //startElaboration(data);
-                    deltaSpeed = extractString(strdup(data));
-                    int waitingTime = deltaSpeed/5;
-                    write(pipeArray[1], &deltaSpeed, sizeof(deltaSpeed));
-                    if (strcmp(command, "PARCHEGGIO") == 0) {
-                        sleep(waitingTime);
-                        kill(ecuPid, SIGUSR1); // SEGNALA CHE HA PARCHEGGIATO
-                        sigTermHandler(); // MUORE
-                    }
-                }
-                close(clientFileDescriptor); /* Close the socket */
-                exit(/* EXIT_SUCCESS */ 0); /* Terminate */
-            }
-            else
-            {
-                close(clientFileDescriptor); /* Close the client descriptor */
-            }
-        }
-    }
-
-    exit(EXIT_SUCCESS);
+void writeMessage(FILE *fp, const char * format, ...)
+{
+    char buffer[256];
+    char date[256];
+    formattedTime(date);
+    va_list args;
+    va_start(args, format);
+    vsnprintf(buffer, 256, format, args);
+    va_end(args);
+    fprintf(fp, "[%s] - [%s]\n", date, buffer);
+    fflush(fp);
 }
 
 void openFile(char filename[], char mode[], FILE **filePointer) {

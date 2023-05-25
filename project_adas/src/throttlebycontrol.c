@@ -25,13 +25,22 @@
 #include <sys/un.h> /* For AFUNIX sockets */
 #include <fcntl.h>
 #include <sys/wait.h>
-
+#include <time.h>
+#include <stdarg.h>
+#include <sys/stat.h>
 
 int deltaSpeed;
 FILE* fileLog;
 int status;	//pipe status
 int pipeArray[2]; //pipe array
 pid_t pidChildWriter;
+
+int openPipeOnRead(char *pipeName);
+int readLine(int fileDescriptor, char *str);
+void formattedTime(char *timeBuffer);
+void writeMessage(FILE *fp, const char * format, ...);
+
+
 
 void openFile(char filename[], char mode[], FILE **filePointer);
 void sigTermHandler();
@@ -52,120 +61,88 @@ int main(int argc, char* argv[])
 
     printf("PROCESSO THROTTLE BY CONTROL\n");
 
-    int READ = 0;
-    int WRITE = 1;
-
-    status = pipe(pipeArray);
-
-    if(status != 0)
+    printf("Tento di aprire il file di log throttle.log\n");
+    fileLog = fopen("throttle.log", "w");
+        
+    if (fileLog == NULL) 
     {
-        printf("Error with pipe\n");
+        printf("Errore nell'apertura del file throttle.log\n");
         exit(EXIT_FAILURE);
     }
 
-    fcntl(pipeArray[READ], F_SETFL, O_NONBLOCK);	//rende la read non bloccante
-    printf("Creo un processo figlio di scrittura sul file di log throttle.log\n");
-    pidChildWriter = fork();							//crea un processo figlio di scrittura su file di log
-    if(pidChildWriter == 0)
+    printf("File throttle.log aperto correttamente\n");
+
+    int ecuFileDescriptor = openPipeOnRead("../ipc/throttlePipe");
+    char command[16];
+
+    for (;;)
     {
-        printf("Processo figlio di scrittura creato correttamente\n");
-        close(pipeArray[WRITE]);
-
-
-        printf("Tento di aprire il file di log throttle.log\n");
-        fileLog = fopen("throttle.log", "w");
-        
-        if (fileLog == NULL) 
+        readLine(ecuFileDescriptor, command);
+        if (strncmp(command, "INCREMENTO", 10) == 0)
         {
-            printf("Errore nell'apertura del file throttle.log\n");
-            exit(EXIT_FAILURE);
-        }
-
-        printf("File throttle.log aperto correttamente\n");
-        for(;;)
+            int increment = atoi(command + 11);
+            writeMessage(fileLog, "AUMENTO %d", increment);
+            sleep(1);
+        } 
+        else
         {
-            int sentData;									//variabile d'appoggio per la lettura da pipe
-            if (read(pipeArray[0], sentData, 30) > 0) 
-            {
-                deltaSpeed = sentData;
-            }
-            if (deltaSpeed > 0) 
-            {
-                printf("Stampo sul file di log di throttle by control, AUMENTO 5\n");
-                fprintf(fileLog, "AUMENTO 5\n");
-                fflush(fileLog);
-                deltaSpeed = deltaSpeed - 5;
-            } 
-            else 
-            {
-                printf("Stampo sul file di log di throttle by control, NO ACTION\n");
-                fprintf(fileLog, "NO ACTION\n");
-                fflush(fileLog);
-            }
+            writeMessage(fileLog, "NO ACTION");
             sleep(1);
         }
-
-        close(pipeArray[READ]);
-        close(fileLog);
-        exit(EXIT_SUCCESS);
     }
-    else // il padre rimane in ascolto sulla socket
-    {
-        printf("Processo figlio non creato\n");
-        signal(SIGTERM, sigTermHandler);
-        close(pipeArray[READ]);
-        // configurazione della socket per comunicazione client server
-        //initSocket();						//il padre rimane in ascolto sulla socket
-        printf("Inizializzo la socket su throttle by control\n");
-        int serverFileDescriptor, clientFileDescriptor, serverLength, clientLength;
-        struct sockaddr_un serverAddress; /*Server address */
-        struct sockaddr* ptrSocketServerAddress; /*pointer to server address*/
 
-        struct sockaddr_un clientUnixAddress; /*Client address */
-        struct sockaddr* ptrSocketClientAddress;/*Ptr to client address*/
-
-        ptrSocketServerAddress = (struct sockaddr*) &serverAddress;
-        serverLength = sizeof (serverAddress);
-        
-        ptrSocketClientAddress = (struct sockaddr*) &clientUnixAddress;
-        clientLength = sizeof (clientUnixAddress);
-
-        char* socketName = "throttlebycontrolSocket";
-        serverFileDescriptor = socket (AF_UNIX, SOCK_STREAM, 0);
-        serverAddress.sun_family = AF_UNIX;
-
-
-        strcpy (serverAddress.sun_path, socketName);
-        unlink (socketName);
-        bind (serverFileDescriptor, ptrSocketServerAddress, serverLength);
-        listen (serverFileDescriptor, 1);
-
-        printf("Socket inizializzata su throttle by control\n");
-        int speed = 0;
-
-        for (;;)
-        {/* Loop forever */ /* Accept a client connection */
-            clientFileDescriptor = accept (serverFileDescriptor, ptrSocketClientAddress, &clientLength);
-            printf("Creo il processo figlio per leggere i dati dalla socket\n");
-            if (fork() == 0)
-            { /* Create child */
-                char data[30];
-                printf("Finchè ci sono dati provenienti dalla socket...");
-                while (readFromSocket(clientFileDescriptor, data)) // finchè ci sono dati dai client
-                {
-                    deltaSpeed = extractString(strdup(data));
-                    write(pipeArray[WRITE], &speed, 30);
-                }
-                close (clientFileDescriptor); /* Close the socket */
-                exit (EXIT_SUCCESS); /* Terminate */
-            }
-            else
-            {
-                close (clientFileDescriptor); /* Close the client descriptor */
-            }
-        }
-    }
+    fclose(fileLog);
+    exit(EXIT_SUCCESS);
 }
+
+int openPipeOnRead(char *pipeName)
+{
+    int fileDescriptor;
+    do
+    {
+        fileDescriptor = open(pipeName, O_RDONLY); // Opening named pipe for write
+        if (fileDescriptor == -1)
+        {
+            printf("Pipename:%s non trovata. Riprova ancora...\n", pipeName);
+            sleep(1);
+        }
+    } while (fileDescriptor == -1);
+    return fileDescriptor;
+}
+
+int readLine(int fileDescriptor, char *str)
+{
+	int n;
+	do {
+		n = read (fileDescriptor, str, 1);
+	} while (n > 0 && *str++ != '\0');
+    return (n > 0);
+}
+
+void formattedTime(char *timeBuffer) 
+{
+    time_t rawTime;
+    struct tm *info;
+    time(&rawTime);
+    info = localtime(&rawTime);
+    strftime(timeBuffer,256,"%x - %X", info);
+}
+
+void writeMessage(FILE *fp, const char * format, ...)
+{
+    char buffer[256];
+    char date[256];
+    formattedTime(date);
+    va_list args;
+    va_start(args, format);
+    vsnprintf(buffer, 256, format, args);
+    va_end(args);
+    fprintf(fp, "[%s] - [%s]\n", date, buffer);
+    fflush(fp);
+}
+
+
+
 
 int extractString(char* data) {							//estrae l'incremento di velocita' dall'input inviato dall'ECU
 	char* acceleration;

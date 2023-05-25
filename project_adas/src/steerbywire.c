@@ -24,10 +24,20 @@ Ogni secondo, il componente stampa nel file di log steer.log: “NO ACTION”, �
 #include <sys/socket.h>
 #include <sys/un.h> /* For AFUNIX sockets */
 #include <fcntl.h>
+#include <time.h>
+#include <stdarg.h>
+#include <sys/stat.h>
 
 FILE* fileLog;
 int pipeArray[2];
 pid_t processWriterToLog;
+
+// new functions 
+int openPipeOnRead(char *pipeName);
+int readLine(int fileDescriptor, char *str);
+void formattedTime(char *timeBuffer);
+void writeMessage(FILE *fp, const char * format, ...);
+
 
 int readFromSocket (int , char *);
 void sigTermHandler();
@@ -45,123 +55,91 @@ int main(int argc, char* argv[])
     printf("\n");
 
     printf("PROCESSO STEER BY WIRE\n");
-    int READ = 0;
-    int WRITE = 1;
-    int status = pipe(pipeArray);
+    
+    printf("Tento di aprire il file brake.log in scrittura\n");
+    fileLog = fopen("steer.log", "w");
 
-    printf("Controllo lo stato della pipe su steer by wire\n");
-    if (status != 0)
+    if (fileLog ==  NULL)
     {
-        printf("Error pipe!\n");
-        return (EXIT_FAILURE);
+        printf("Errore nell'apertura del file brake.log\n");
+        exit(EXIT_FAILURE);
     }
+
+    printf("File di log aperto correttamente\n");
     
     printf("Faccio una read non bloccante su steer by wire\n");
-    fcntl(pipeArray[READ], F_SETFL, O_NONBLOCK); //lettura non bloccante, intanto testare la lettura classica
-    
-    printf("Creo il processo figlio che si preoccupa di scrivere su file di log le sterzate\n");
-    processWriterToLog = fork(); // creo un processo figlio che scrive su file di log
-
-    if (processWriterToLog == 0)
+    char command[16];
+    int fileDescriptor = openPipeOnRead("../ipc/steerPipe");
+    int readValue = 0;
+    for (;;)
     {
-        printf("Processo figlio steer by wire creato\n");
-        close(pipeArray[READ]); // chiudo la pipe in lettura
-
-        printf("Inizializzo la socket su steer by wire\n");
-
-        int serverFileDescriptor = 0, clientFileDescriptor = 0, serverLength = 0, clientLength = 0;
-            struct sockaddr_un serverAddress; /*Server address */
-            struct sockaddr* ptrServerSocket; /*Ptr to server address*/
-
-            struct sockaddr_un clientAddress; /*Client address */
-            struct sockaddr* ptrClientSocket;/*Ptr to client address*/
-
-            ptrServerSocket = (struct sockaddr*) &serverAddress;
-            serverLength = sizeof (serverAddress);
-
-            ptrClientSocket = (struct sockaddr*) &clientAddress;
-            clientLength = sizeof (clientAddress);
-
-            char* socketName = "steerbywireSocket";
-
-            serverFileDescriptor = socket (AF_UNIX, SOCK_STREAM, 0);
-            serverAddress.sun_family = AF_UNIX;
-
-            strcpy (serverAddress.sun_path, socketName);
-            unlink (socketName);
-            bind (serverFileDescriptor, ptrServerSocket, serverLength);
-            listen (serverFileDescriptor, 1);
-
-            printf("Socket su steer by wire inizializzata\n");
-
-            for(;;) // loop infinito che accetta possibili connessioni da parte di client
-            {
-                clientFileDescriptor = accept(serverFileDescriptor, ptrClientSocket, &clientLength);
-                printf("Creo un processo figlio per leggere dalla socket su steer by wire\n");
-                if (fork() == 0)
-                {
-                    char data[100];
-                    while (readFromSocket(clientFileDescriptor, data) > 0)
-                    {
-                        write(pipeArray[WRITE], data, 30);
-                    }
-                    close(clientFileDescriptor);
-                    exit(EXIT_SUCCESS);
-                }
-                else
-                {
-                    close(clientFileDescriptor); // chiuso il client descriptor
-                }
-
-            }
-    } 
-    else
-    {
-        signal(SIGTERM,sigTermHandler);
-        close(pipeArray[WRITE]);
-        char *direction;
-        
-        printf("Apro il file di log steer.log\n");
-
-        fileLog = fopen("steer.log", "w");
-
-        if (fileLog == NULL)
+        printf("Leggo una linea\n");
+        if (readValue = readLine(fileDescriptor, command) == -1)
         {
-            printf("Errore nell'apertura del file steer.log\n");
-            exit(EXIT_FAILURE);
-        }
-    
-        while(1) 
-        {
-            char sentData[30];
-            if (read(pipeArray[0], sentData, 30) > 0) 
-            {
-                direction = sentData;
-            }
-
-            if (strcmp(direction,"DESTRA") == 0 || strcmp(direction, "SINISTRA") == 0) 
-            {
-                for (int i = 0; i<4; i++)
-                {
-                    printf("Scrivo sul file di log la sterzata\n");    
-                    fprintf(fileLog,"STO GIRANDO A %s\n", direction);
-                    fflush(fileLog);
-                    sleep(1);   
-                } 
-            } 
-            else 
-            {
-                fprintf(fileLog, "NO ACTION\n");
-                fflush(fileLog);
-            }
-
+            writeMessage(fileLog, "NO ACTION");
             sleep(1);
         }
-
-        close(fileLog);
+        else if (strcmp(command, "DESTRA") == 0 || strcmp(command, "SINISTRA") == 0)
+        {
+            writeMessage(fileLog, "STO GIRANDO A %s", command);
+            sleep(1);
+        } 
     }
 
+    fclose(fileLog);
+    //wait(NULL);
+    exit(EXIT_SUCCESS);
 }
+
+
+int openPipeOnRead(char *pipeName)
+{
+    int fileDescriptor;
+    do
+    {
+        fileDescriptor = open(pipeName, O_RDONLY | O_NONBLOCK); // Opening named pipe for write
+        if (fileDescriptor == -1)
+        {
+            printf("Pipename:%s non trovata. Riprova ancora...\n", pipeName);
+            sleep(1);
+        }
+    } while (fileDescriptor == -1);
+    return fileDescriptor;
+}
+
+int readLine(int fileDescriptor, char *str)
+{
+	int n;
+	do {
+		n = read (fileDescriptor, str, 1);
+	} while (n > 0 && *str++ != '\0');
+    return (n > 0);
+}
+
+
+void formattedTime(char *timeBuffer) 
+{
+    time_t rawTime;
+    struct tm *info;
+    time(&rawTime);
+    info = localtime(&rawTime);
+    strftime(timeBuffer,256,"%x - %X", info);
+}
+
+void writeMessage(FILE *fp, const char * format, ...)
+{
+    char buffer[256];
+    char date[256];
+    formattedTime(date);
+    va_list args;
+    va_start(args, format);
+    vsnprintf(buffer, 256, format, args);
+    va_end(args);
+    fprintf(fp, "[%s] - [%s]\n", date, buffer);
+    fflush(fp);
+}
+
+
 
 int readFromSocket (int fd, char *str) {
     int n;
