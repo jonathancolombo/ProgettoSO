@@ -51,7 +51,7 @@ int WRITE = 1;
 int currentSpeed = 0;
 
 //
-char sockets_name[][50] = {"forwardfacingradarSocket", "parkassistSocket", "frontwindshieldcameraSocket", "surroundviewcameraSocket"};
+//char sockets_name[][50] = {"forwardfacingradarSocket", "parkassistSocket", "frontwindshieldcameraSocket", "surroundviewcameraSocket"};
 
 // inizializzazione pipe
 // ognuno di lunghezza due per un file in lettura e l'altro in scrittura
@@ -71,9 +71,36 @@ void writeMessage(FILE *fp, const char * format, ...);
 void formattedTime(char *timeBuffer);
 void receiveString(int fileDescriptor, char *string);
 int park(int clientFd);
+void startProcess(char **mode);
+void startParkAssist(char **mode);
+
+
 
 int inputPid;
 pid_t inputReader;
+int speed;
+
+void throttleFailure() {    //HANDLING THROTTLE FAILURE
+    speed = 0;
+    kill(attuatoriPid[2], SIGTSTP);
+    kill(getppid(), SIGUSR1);
+    kill(attuatoriPid[0], SIGUSR1); // sigint su steer by wire
+    kill(attuatoriPid[1], SIGUSR1); // sigint su throttle control
+    //kill(attuatoriPid[2], SIGTSTP); // stoppo brake by wire
+    kill(sensoriPid[0], SIGUSR1); // sigint su front windshield camera
+    kill(sensoriPid[1], SIGUSR1); // sigint su front facing radar
+    kill(sensoriPid[2], SIGUSR1);
+    
+    kill(inputPid, SIGINT);
+    unlink("ecuSocket");
+    unlink("throttlePipe");
+    unlink("steerPipe");
+    unlink("brakePipe");
+    unlink("ecuToHmiPipe");
+    unlink("hmiInputToEcuPipe");
+    exit(EXIT_FAILURE);
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -102,102 +129,9 @@ int main(int argc, char *argv[])
     }
 
     // inizializzo la velocità e la imposto sul file di LOG
-    int speed = 0;
     printf("Inserisco 0 su ECU.log\n");
     fprintf(ecuLog, "%d\n", speed);
     // fflush(ecuLog);
-    printf("Chiudo il file di Log della ECU e stampo lo stato della close: %d\n", fclose(ecuLog)); // chiusura file ECU.log
-
-    // crea la pipe e la comunicazione con l'hmi
-    int hmiFileDescriptor = createPipe("../ecuToHmiPipe");
-    int hmiInputFileDescriptor = openPipeOnRead("../../ipc/hmiInputToEcuPipe");
-    read(hmiInputFileDescriptor, &inputPid, sizeof(int));
-
-    // prevedere dei controlli per la configurazione del rilancio del sistema
-
-    // genero tutti i processi figli della ECU (attuatori e sensori)
-    // inizializzo gli attuatori
-    int indexAttuatori = 0; // 3 attuatori (steer by wire, throttle control, brake by wire
-
-    attuatoriPid[indexAttuatori] = fork(); // genero steer by wire
-
-    if (attuatoriPid[indexAttuatori] < 0) // 0, figlio steer by wire
-    {
-        perror("Fork error\n");
-        printf("Processo steer by wire non generato correttamente\n");
-        exit(EXIT_FAILURE);
-    }
-    else
-    {
-        printf("Eseguo steer by wire con una execv\n");
-        sleep(1);
-        argv[0] = "./steerbywire";
-        execv(argv[0], argv);
-    }
-
-    indexAttuatori++;
-    attuatoriPid[indexAttuatori] = fork(); // genero throttlecontrol
-
-    if (attuatoriPid[indexAttuatori] < 0) // 1, figlio throttle control
-    {
-        perror("Fork error\n");
-        printf("Processo throttle by control non generato correttamente\n");
-        exit(EXIT_FAILURE);
-    }
-    else
-    {
-        printf("Eseguo throttle by control con una execv\n");
-        argv[0] = "./throttlebycontrol";
-        execv(argv[0], argv);
-    }
-
-    indexAttuatori++;
-    attuatoriPid[indexAttuatori] = fork(); //2, genero il brake by wire
-
-    if (attuatoriPid[indexAttuatori] < 0)
-    {
-        perror("Fork error\n");
-        printf("Processo brake by wire non generato correttamente\n");
-        exit(EXIT_FAILURE);
-    }
-    else
-    {
-        printf("Eseguo steer by wire con una execv\n");
-        argv[0] = "./brakebywire";
-        execv(argv[0], argv);
-    }
-
-    // inizializzo anche i sensori
-    int indexSensori = 0; // 3 sensori (front windshield camera, front facing radar, park assist)
-
-    sensoriPid[indexSensori] = fork(); // 0, genero frontWindshieldCamera
-    if (sensoriPid[indexSensori] < 0)
-    {
-        perror("Fork error\n");
-        printf("Processo front windshield camera non generato correttamente\n");
-        exit(EXIT_FAILURE);
-    }
-    else
-    {
-        printf("Eseguo front windshield camera con una execv\n");
-        argv[0] = "./frontwindshieldcamera";
-        execv(argv[0], argv);
-    }
-
-    indexSensori++;
-    sensoriPid[indexSensori] = fork(); // 1, genero front facing radar
-    if (sensoriPid[indexSensori] < 0)
-    {
-        perror("Fork error\n");
-        printf("Processo front facing radar non generato correttamente\n");
-        exit(EXIT_FAILURE);
-    }
-    else
-    {
-        printf("Eseguo front facing radar con una execv\n");
-        argv[0] = "./frontfacingradar";
-        execv(argv[0], argv);
-    }
 
     // inizializzazione socket server
     struct sockaddr_un ecuServerAddress;
@@ -211,16 +145,35 @@ int main(int argc, char *argv[])
     ptrClientAddress = (struct sockaddr *)&clientAddress;
     int clientLength = sizeof(clientAddress);
 
-    ecuServerAddress.sun_family = AF_UNIX;
 
+    // crea la pipe e la comunicazione con l'hmi
+    printf("Creo le pipe per la comunicazione hmi-ecu\n");
+    int hmiFileDescriptor = createPipe("ecuToHmiPipe");
+    int hmiInputFileDescriptor = openPipeOnRead("hmiInputToEcuPipe");
+    printf("Fatto, ora leggo\n");
+    read(hmiInputFileDescriptor, &inputPid, sizeof(int));
+
+    // prevedere dei controlli per la configurazione del rilancio del sistema
+    signal(SIGUSR1, throttleFailure);
+
+    // genero tutti i processi figli della ECU (attuatori e sensori)
+    // inizializzo gli attuatori
+    int fileDescriptorThrottle = createPipe("throttlePipe");
+    int fileDescriptorSteer = createPipe("steerPipe");
+    int fileDescriptorBrake = createPipe("brakePipe");
+    startProcess(&argv[1]);
+
+    printf("Inizializzo la socket\n");
     int ecuFileDescriptor = socket(AF_UNIX, SOCK_STREAM, DEFAULT_PROTOCOL);
-    strcpy(ecuServerAddress.sun_path, "./ecuSocket");
-    unlink("./ecuSocket");
+    ecuServerAddress.sun_family = AF_UNIX;
+    strcpy(ecuServerAddress.sun_path, "ecuSocket");
+    unlink("ecuSocket");
     bind(ecuFileDescriptor, ptrEcuServerAddress, serverLength);
     listen(ecuFileDescriptor, 3);
     int pipeArray[2];
 
     pipe2(pipeArray[2], O_NONBLOCK);
+
     FILE *hmiLog = NULL;
     int input = 0;
     char socketString[16];
@@ -247,8 +200,10 @@ int main(int argc, char *argv[])
                 else if (strcmp(command, "INIZIO") == 0)
                     input =  2;
                 else if (strcmp(command, "PARCHEGGIO") == 0)
+                {
                     input = 3;
-                    input = -1;
+                }
+                else input = -1;
             }
 
             write(pipeArray[WRITE], &input, sizeof(int));
@@ -266,9 +221,6 @@ int main(int argc, char *argv[])
 
     printf("Processo ecu bloccato da pause\n");
     
-    int fileDescriptorThrottle = createPipe("../throttlebycontrol");
-    int fileDescriptorSteer = createPipe("../steerbywire");
-    int fileDescriptorBrake = createPipe("../brakebywire");
 
     close(pipeArray[WRITE]);
 
@@ -320,9 +272,7 @@ int main(int argc, char *argv[])
             }
             else
             {
-                printf("Eseguo park assist con una execv\n");
-                argv[0] = "./parkassist";
-                execv(argv[0], argv);
+                startParkAssist(&argv[1]);
             }
         }
 
@@ -428,14 +378,115 @@ int main(int argc, char *argv[])
     kill(sensoriPid[1], SIGINT); // sigint su front facing radar
     kill(sensoriPid[2], SIGINT);
     kill(inputPid, SIGINT);
-    unlink("../ipc/ecuSocket");
-    unlink("../ipc/throttlePipe");
-    unlink("../ipc/steerPipe");
-    unlink("../ipc/brakePipe");
-    unlink("../ipc/ecuToHmiPipe");
+    unlink("ecuSocket");
+    unlink("throttlePipe");
+    unlink("steerPipe");
+    unlink("brakePipe");
+    unlink("ecuToHmiPipe");
+    unlink("hmiInputToEcuPipe");
     exit(EXIT_SUCCESS);
 }
 
+
+void startProcess(char **mode)
+{
+    char *argv[6];
+    //int indexAttuatori = 0; // 3 attuatori (steer by wire, throttle control, brake by wire
+
+    attuatoriPid[1] = fork(); // genero throttlecontrol
+
+    if (attuatoriPid[1] < 0) // 1, figlio throttle control
+    {
+        perror("Fork error\n");
+        printf("Processo throttle by control non generato correttamente\n");
+        exit(EXIT_FAILURE);
+    }
+    else
+    {
+        printf("Eseguo throttle by control con una execv\n");
+        argv[0] = "./throttlebycontrol";
+        argv[1] = *mode;
+        execv(argv[0], argv);
+    }
+
+    sensoriPid[1] = fork(); // 1, genero forward facing radar
+    if (sensoriPid[1] < 0)
+    {
+        perror("Fork error\n");
+        printf("Processo forward facing radar non generato correttamente\n");
+        exit(EXIT_FAILURE);
+    }
+    else
+    {
+        printf("Eseguo forward facing radar con una execv\n");
+        argv[0] = "./forwardfacingradar";
+        argv[1] = *mode;
+        execv(argv[0], argv);
+    }
+
+    attuatoriPid[0] = fork(); // genero steer by wire
+
+    if (attuatoriPid[0] < 0) // 0, figlio steer by wire
+    {
+        perror("Fork error\n");
+        printf("Processo steer by wire non generato correttamente\n");
+        exit(EXIT_FAILURE);
+    }
+    else
+    {
+        printf("Eseguo steer by wire con una execv\n");
+        //sleep(1);
+        argv[0] = "./steerbywire";
+        argv[1] = *mode;
+        execv(argv[0], argv);
+    }
+
+
+    attuatoriPid[2] = fork(); //2, genero il brake by wire
+
+    if (attuatoriPid[2] < 0)
+    {
+        perror("Fork error\n");
+        printf("Processo brake by wire non generato correttamente\n");
+        exit(EXIT_FAILURE);
+    }
+    else
+    {
+        printf("Eseguo steer by wire con una execv\n");
+        argv[0] = "./brakebywire";
+        argv[1] = *mode;
+        execv(argv[0], argv);
+    }
+
+    // inizializzo anche i sensori
+    //int indexSensori = 0; // 3 sensori (front windshield camera, front facing radar, park assist)
+
+    sensoriPid[0] = fork(); // 0, genero frontWindshieldCamera
+    if (sensoriPid[0] < 0)
+    {
+        perror("Fork error\n");
+        printf("Processo front windshield camera non generato correttamente\n");
+        exit(EXIT_FAILURE);
+    }
+    else
+    {
+        printf("Eseguo front windshield camera con una execv\n");
+        argv[0] = "./frontwindshieldcamera";
+        argv[1] = *mode;
+        execv(argv[0], argv);
+    }
+
+}
+
+
+void startParkAssist(char **mode)
+{
+    char *argv[6];
+    printf("Eseguo park assist con una execv\n");
+    argv[0] = "./parkassist";
+    argv[1] = *mode;
+    execv(argv[0], argv);
+}
 
 int createPipe(char *pipeName)
 {
@@ -451,7 +502,7 @@ int createPipe(char *pipeName)
         fileDescriptor = open(pipeName, O_WRONLY); // Opening named pipe for write
         if (fileDescriptor == -1)
         {
-            printf("%s not found. Trying again...\n", pipeName);
+            printf("%s non trovata. Riprova ancora...\n", pipeName);
             sleep(1);
         }
     } while (fileDescriptor == -1);
@@ -522,7 +573,6 @@ void receiveString(int fileDescriptor, char *string)
             sleep(1);
     } while(*string++ != '\0');
 }
-
 
 int park(int clientFd)
 { // PARKING METHOD

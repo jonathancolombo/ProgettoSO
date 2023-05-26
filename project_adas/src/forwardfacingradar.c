@@ -49,29 +49,29 @@ int main(int argc, char **argv)
     signal(SIGTERM, sigTermHandler);
     if (strcmp(argv[1], "NORMALE") == 0)
     {
-        printf("Tento di aprire il file dev/urandom in lettura \n");
-        fileRead = fopen("/dev/urandom","rb");
+        printf("Tento di aprire il file dev/urandom in lettura\n");
+        fileRead = fopen("/dev/random","rb");
         if (fileRead == NULL)
         {
             printf("Errore nell'apertura del file /dev/urandom\n");
             exit(EXIT_FAILURE);
         }
-        printf("File /dev/urandom aperto correttamente\n");
+        printf("File /dev/random aperto correttamente\n");
     }
     else
     {
-        printf("Tento di aprire il file urandomARTIFICIALE.binary in lettura \n");
-        fileRead = fopen("urandomARTIFICIALE.binary","rb");
+        printf("Tento di aprire il file urandomARTIFICIALE.binary in lettura\n");
+        fileRead = fopen("randomARTIFICIALE.binary","rb");
         if (fileRead == NULL)
         {
             printf("Errore nell'apertura del file urandomARTIFICIALE.binary\n");
             exit(EXIT_FAILURE);
         }
-        printf("File urandomARTIFICIALE.binary aperto correttamente\n");
+        printf("File randomARTIFICIALE.binary aperto correttamente\n");
     }
     
     printf("Tento di aprire il file radar.log in scrittura\n");
-    fileRadarLog = fopen("radar.log", "w");
+    fileRadarLog = fopen("radar.log", "w+");
     if (fileRadarLog == NULL)
     {
         printf("Errore nell'apertura del file radar.log\n");
@@ -79,7 +79,7 @@ int main(int argc, char **argv)
     }
     printf("File radar.log aperto correttamente\n");
     
-    while((socketFileDescriptor = createConnection("forwardfacingradarSocket")) < 0)
+    while((socketFileDescriptor = createConnection("ecuSocket")) < 0)
     {
         sleep(1);
     }
@@ -101,7 +101,8 @@ int main(int argc, char **argv)
         }
         sleep(2);
     }
-
+    fclose(fileRadarLog);
+    exit(EXIT_SUCCESS);
 }
 
 
@@ -114,7 +115,7 @@ void sigTermHandler() {
 void openFile(char filename[], char mode[], FILE **filePointer) {
     *filePointer = fopen(filename, mode);
     if (*filePointer == NULL) {
-        printf("Errore nell'apertura del file");
+        printf("Errore nell'apertura del file\n");
         exit(1);
     }
 }

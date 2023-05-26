@@ -42,6 +42,12 @@ void writeMessage(FILE *fp, const char * format, ...);
 int readFromSocket (int , char *);
 void sigTermHandler();
 
+
+void handleFailure() {
+    fclose(fileLog);
+    exit(EXIT_FAILURE);
+}
+
 int main(int argc, char* argv[])
 {
     printf("\n");
@@ -55,7 +61,8 @@ int main(int argc, char* argv[])
     printf("\n");
 
     printf("PROCESSO STEER BY WIRE\n");
-    
+    signal(SIGUSR1, handleFailure);
+
     printf("Tento di aprire il file brake.log in scrittura\n");
     fileLog = fopen("steer.log", "w");
 
@@ -69,7 +76,7 @@ int main(int argc, char* argv[])
     
     printf("Faccio una read non bloccante su steer by wire\n");
     char command[16];
-    int fileDescriptor = openPipeOnRead("../ipc/steerPipe");
+    int fileDescriptor = openPipeOnRead("steerPipe");
     int readValue = 0;
     for (;;)
     {
@@ -100,7 +107,7 @@ int openPipeOnRead(char *pipeName)
         fileDescriptor = open(pipeName, O_RDONLY | O_NONBLOCK); // Opening named pipe for write
         if (fileDescriptor == -1)
         {
-            printf("Pipename:%s non trovata. Riprova ancora...\n", pipeName);
+            printf("Pipename: %s non trovata. Riprova ancora...\n", pipeName);
             sleep(1);
         }
     } while (fileDescriptor == -1);

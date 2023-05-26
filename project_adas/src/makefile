@@ -29,4 +29,5 @@ allMake:
 	gcc throttlebycontrol.c -o throttlebycontrol
 	gcc ecu.c -o ecu
 	gcc hmi.c -o hmi
+	gcc hmiInput.c -o hmiInput
 	@echo "Tutti i file sono stati creati correttamente."

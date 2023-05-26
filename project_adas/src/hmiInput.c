@@ -19,7 +19,7 @@ int main(int argc, char *argv[]) {
     signal(SIGINT, signalHandler);
 
     printf("HMI Input system initialized\n\n");
-    fileDescriptor = createPipe("../../ipc/hmiInputToEcuPipe");
+    fileDescriptor = createPipe("hmiInputToEcuPipe");
     write(fileDescriptor, &pid, sizeof(int));
     while(1) 
     {
@@ -43,7 +43,7 @@ int main(int argc, char *argv[]) {
 void signalHandler() 
 {
     close(fileDescriptor);
-    unlink("../../ipc/hmiInputToEcuPipe");
+    unlink("hmiInputToEcuPipe");
     exit(EXIT_SUCCESS);
 }
 
@@ -60,7 +60,7 @@ int createPipe(char *pipeName)
         fileDescriptor = open(pipeName, O_WRONLY);    //Opening named pipe for write
         if(fileDescriptor == -1)
         {
-            printf("%s not found. Trying again...\n", pipeName);
+            printf("%s non trovata. Riprova ancora...\n", pipeName);
             sleep(1);
         }
     } while(fileDescriptor == -1);

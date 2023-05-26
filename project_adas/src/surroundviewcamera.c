@@ -30,7 +30,7 @@ int stop = 0;
 unsigned char buffer[MAX_BYTE];
 
 // Functions
-void start(char **mode);
+void startProcess(char **mode);
 void readAndLog();
 void writeOnLog();
 void sigStartHandler();
@@ -54,10 +54,10 @@ int main (int argc, char *argv[])
     printf("PROCESSO SURROUND VIEW CAMERA\n");
     signal(SIGUSR1,sigStartHandler);
     signal(SIGTERM,sigTermHandler);
-    start(&argv[1]);
+    startProcess(&argv[1]);
 }
 
-void start(char **mode) {
+void startProcess(char **mode) {
     if (strcmp(*mode, "NORMALE") == 0) 
     {
         printf("Tento di aprire il file dev/urandom\n");
@@ -67,7 +67,7 @@ void start(char **mode) {
             printf("Impossibile aprire il file dev/urandom\n");
             return EXIT_FAILURE;
         }
-        printf("Lettura da dev/random avviata\n");
+        printf("Lettura da dev/urandom avviata\n");
     }
     else 
     {
@@ -92,7 +92,7 @@ void start(char **mode) {
 
     printf("Cameras.log aperto in modalità lettura\n");
 
-    while((socketFd = createConnection("surroundviewcameraSocket")) < 0)
+    while((socketFd = createConnection("ecuSocket")) < 0)
     {
         sleep(1);
     }

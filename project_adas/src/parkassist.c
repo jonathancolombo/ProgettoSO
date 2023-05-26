@@ -63,24 +63,24 @@ int main(int argc, char *argv[])
 
 void init(char* modalita)
 {
-     if (strcmp(modalita, "NORMALE") == 0) 
-     {
+    if (strcmp(modalita, "NORMALE") == 0) 
+    {
         openFile("/dev/urandom", "rb", &fileRead);
-        } 
+    } 
     else 
     {
         openFile("urandomARTIFICIALE.binary", "rb", &fileRead);
     }
         
         openFile("assist.log","w",&fileLog);
-        while((socketFileDescriptor = createConnection("parkassistSocket")) < 0)
+        while((socketFileDescriptor = createConnection("ecuSocket")) < 0)
             sleep(1);
 }
 
 void sigStartHandler(){
 
-    signal(SIGUSR1,sigStopHandler);
-    kill(pidSurroundViewCamera,SIGUSR1);	// AVVIA SorroundViewWithCameras
+    signal(SIGUSR1, sigStopHandler);
+    kill(pidSurroundViewCamera, SIGUSR1);	// AVVIA SorroundViewWithCameras
     // parking readAndLog();
     printf("Inizio procedura di parcheggio\n");
 

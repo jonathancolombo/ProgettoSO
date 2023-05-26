@@ -81,7 +81,7 @@ int main(void)
 
     printf("\n");
 
-    printf("PROCESSO STEER BY WIRE\n");
+    printf("PROCESSO BRAKE BY WIRE\n");
     signal(SIGTSTP, handleStop);
 
     printf("Tento di aprire il file brake.log in scrittura\n");
@@ -96,7 +96,7 @@ int main(void)
     printf("File di log aperto correttamente\n");
     
     printf("Faccio una read non bloccante dalla pipe\n");
-    int ecuFileDescriptor = openPipeOnRead("../ipc/brakePipe");
+    int ecuFileDescriptor = openPipeOnRead("brakePipe");
     char command[16];
     for(;;)
     {

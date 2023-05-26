@@ -18,13 +18,32 @@
 FILE *fileUtility;
 FILE *fileEcuLog;
 
+int terminated;
+int fileDescriptor;
+
+void countTerminated() {
+    terminated++;
+    if (terminated >= 2) {
+        close(fileDescriptor);
+        exit(EXIT_SUCCESS);
+    }
+}
 
 int openPipeOnRead(char *pipeName);
 int readLine (int fileDescriptor, char *str);
 int readFromPipe(int fileDescriptor);
 
+void failureHandler() {
+    printf("ERRORE ACCELERAZIONE\nTERMINAZIONE PROGRAMMA...");
+    exit(EXIT_FAILURE);
+}
+
 int main(int argc, char *argv[])
 {
+
+    signal(SIGCHLD, countTerminated);
+    signal(SIGUSR1, failureHandler);
+    terminated = 0;
     /*
      * Controlla la tipologia di AVVIO impostata e restituisce un errore
      */
@@ -35,10 +54,10 @@ int main(int argc, char *argv[])
     }
 
     printf("Eseguo la system per la gnome-terminal");
-    sleep(2);
+    //sleep(2);
     system("gnome-terminal -- ./hmiInput");
     // fork del processo ECU
-    pid_t ecuProcessPID = fork();
+    int ecuProcessPID = fork();
     // controllo se il processo ECU è stato creato correttamente
     if (ecuProcessPID < 0)
     {
@@ -50,22 +69,17 @@ int main(int argc, char *argv[])
     {
         // imposto il pgid ed eseguo una execv
         printf("Sono il processo figlio\n");
-        sleep(1);
-        printf("Cambio gruppo impostando il setpgid a 0,0\n");
-        // per cambiare gruppo
-        setpgid(0, 0);
         argv[0] = "./ecu";
-        sleep(1);
         printf("Eseguo la exec dal processo figlio\n");
-        printf("argv[0]: %s, argv: %s", argv[0], *argv);
-        sleep(1);
+        printf("argv[0]: %s, argv: %s\n", argv[0], argv);
         execv(argv[0], argv);
+        //execl("../control/centralECU", "./centralECU", argv[1], 0);
     }
 
     printf("HMI Output system initialized\n\n");
     int n;
-    int fileDescriptor = openPipeOnRead("../../ipc/ecuToHmiPipe");
-    printf("Named pipe found.\n\n");
+    fileDescriptor = openPipeOnRead("ecuToHmiPipe");
+    printf("Pipe trovata.\n\n");
     printf("Inizio a leggere dalla pipe\n");
     for (;;)
     {

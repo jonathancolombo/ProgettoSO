@@ -60,6 +60,8 @@ int main(int argc, char* argv[])
     printf("\n");
 
     printf("PROCESSO THROTTLE BY CONTROL\n");
+   
+
 
     printf("Tento di aprire il file di log throttle.log\n");
     fileLog = fopen("throttle.log", "w");
@@ -72,7 +74,7 @@ int main(int argc, char* argv[])
 
     printf("File throttle.log aperto correttamente\n");
 
-    int ecuFileDescriptor = openPipeOnRead("../ipc/throttlePipe");
+    int ecuFileDescriptor = openPipeOnRead("throttlePipe");
     char command[16];
 
     for (;;)
@@ -103,7 +105,7 @@ int openPipeOnRead(char *pipeName)
         fileDescriptor = open(pipeName, O_RDONLY); // Opening named pipe for write
         if (fileDescriptor == -1)
         {
-            printf("Pipename:%s non trovata. Riprova ancora...\n", pipeName);
+            printf("Pipename: %s non trovata. Riprova ancora...\n", pipeName);
             sleep(1);
         }
     } while (fileDescriptor == -1);
