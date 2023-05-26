@@ -36,27 +36,36 @@ void startProcess(char **mode);
 void startParkAssist(char **mode);
 
 int inputPid;
-int inputReader;
 int speed;
+
+/*
+int pidWithArgs[2]; //THROTTLE CONTROL, PARK ASSIST
+int pidWithoutArgs[3];  //STEER BY WIRE, BRAKE BY WIRE, FRONT WINDHSIELD CAMERA
+*/
+void endProgram(int __sig) {    //ENDING PROGRAM WITH DESIRED SIGNAL
+    kill(attuatoriPid[2], SIGTSTP);
+
+    kill(attuatoriPid[1],__sig);
+    kill(sensoriPid[2],__sig);
+
+    kill(attuatoriPid[0],__sig);
+    kill(attuatoriPid[2],__sig);
+    kill(sensoriPid[0],__sig);
+    
+    kill(inputPid, SIGINT);
+    unlink("./ecuSocket");
+    unlink("./throttlePipe");
+    unlink(".steerPipe");
+    unlink(".brakePipe");
+    unlink("./ecuToHmiPipe");
+}
+
 
 void throttleFailure() {    //HANDLING THROTTLE FAILURE
     speed = 0;
     kill(attuatoriPid[2], SIGTSTP);
     kill(getppid(), SIGUSR1);
-    kill(attuatoriPid[0], SIGUSR1); // sigint su steer by wire
-    kill(attuatoriPid[1], SIGUSR1); // sigint su throttle control
-    //kill(attuatoriPid[2], SIGTSTP); // stoppo brake by wire
-    kill(sensoriPid[0], SIGUSR1); // sigint su front windshield camera
-    kill(sensoriPid[1], SIGUSR1); // sigint su front facing radar
-    kill(sensoriPid[2], SIGUSR1);
-    
-    kill(inputPid, SIGINT);
-    unlink("./ecuSocket");
-    unlink("./throttlePipe");
-    unlink("./steerPipe");
-    unlink("./brakePipe");
-    unlink("./ecuToHmiPipe");
-    unlink("./hmiInputToEcuPipe");
+    endProgram(SIGUSR1);
     exit(EXIT_FAILURE);
 }
 
@@ -77,16 +86,6 @@ int getInput(int hmiInputFd, int hmiFd, FILE *log)
 
 int main(int argc, char *argv[])
 {
-    printf("\n");
-
-    printf("\n");
-
-    printf("\n");
-
-    printf("\n");
-
-    printf("\n");
-
     printf("PROCESSO ECU\n");
 
     // imposto il file di Log della ECU
@@ -101,16 +100,20 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    // inizializzo la velocità e la imposto sul file di LOG
-    //printf("Inserisco 0 su ECU.log\n");
-    //fprintf(ecuLog, "%d\n", speed);
-    // fflush(ecuLog);
+    int stopFlag = 0;
+    int input = 0;
+    int inputReader;
 
-    // crea la pipe e la comunicazione con l'hmi
+    struct sockaddr_un ecuServerAddress;
+    struct sockaddr *ptrEcuServerAddress;
+
+    struct sockaddr_un clientAddress;
+    struct sockaddr *ptrClientAddress;
+
     printf("Creo le pipe per la comunicazione hmi-ecu\n");
     int hmiFileDescriptor = createPipe("./ecuToHmiPipe");
     int hmiInputFileDescriptor = openPipeOnRead("./hmiInputToEcuPipe");
-    printf("Fatto, ora leggo\n");
+    
     read(hmiInputFileDescriptor, &inputPid, sizeof(int));
 
     // prevedere dei controlli per la configurazione del rilancio del sistema
@@ -121,48 +124,15 @@ int main(int argc, char *argv[])
     printf("Inizializzo i processi\n");
     startProcess(&argv[1]);
 
-    /*
-    char *componentsWithArgs[] = {"./forwardfacingradar", "./forwardfacingradar"};
-    char *componentsWithoutArgs[] = {"./steerbywire", "./steerbywire"
-        , "./brakebywire", "./brakebywire", "./frontwindshieldcamera"
-        , "./frontwindshieldcamera", "./throttlebycontrol", "./throttlebycontrol"};
-
-    int pidWithArgs[1]; //THROTTLE CONTROL, PARK ASSIST
-    int pidWithoutArgs[3];  //STEER BY WIRE, BRAKE BY WIRE, FRONT WINDHSIELD CAMERA
-    for (int i = 0; i < 1; i++)
-    {
-        if ((pidWithArgs[i] = fork()) < 0)
-        {
-            exit(EXIT_FAILURE);
-        }
-        else if (pidWithArgs[i] == 0)
-        {
-            execl(componentsWithArgs[2*i], componentsWithArgs[2*i+1], argv[1]);
-        }
-    }
-
-    for (int i = 0; i < 4; i++)
-    {
-        if ((pidWithoutArgs[i] = fork()) < 0)
-        {
-            exit(EXIT_FAILURE);
-        }
-        else if (pidWithoutArgs[i] == 0)
-        {
-            execl(componentsWithoutArgs[2*i], componentsWithoutArgs[2*i+1], 0);
-        }
-    }
-    */
+    
     printf("Inizializzo la socket\n");
+
      // inizializzazione socket server
-    struct sockaddr_un ecuServerAddress;
-    struct sockaddr *ptrEcuServerAddress;
     ptrEcuServerAddress = (struct sockaddr *)&ecuServerAddress;
     int serverLength = sizeof(ecuServerAddress);
 
     // inizializzazione socket client
-    struct sockaddr_un clientAddress;
-    struct sockaddr *ptrClientAddress;
+    
     ptrClientAddress = (struct sockaddr *)&clientAddress;
     int clientLength = sizeof(clientAddress);
 
@@ -177,7 +147,6 @@ int main(int argc, char *argv[])
     pipe2(pipeArray[2], O_NONBLOCK);
 
     FILE *hmiLog = NULL;
-    int input = 0;
     char socketString[16];
     int isListening[2] = {0, 0};
 
@@ -216,23 +185,26 @@ int main(int argc, char *argv[])
     {
         read(pipeArray[READ], &input, sizeof(int));
 
-        if (input == 1 || strcmp(socketString, "PERICOLO") == 0)
+        
+        if ((input == 1 || strcmp(socketString, "PERICOLO") == 0) && stopFlag == 0 && strcmp(socketString, "PARCHEGGIO") != 0)
         {
             writeMessageToPipe(hmiFileDescriptor, "ARRESTO AUTO");
             kill(attuatoriPid[2], SIGTSTP); // segnalo brake by wire
+            stopFlag = 1;
             speed = 0;
             isListening[0] = 0;
             isListening[1] = 0;
         }
         else if (input == 2 && strcmp(socketString, "PARCHEGGIO") != 0)
         {
-            kill(attuatoriPid[2], SIGTSTP);
-            //stopFlag = 0;   // Waiting for the next stop to be called
+            kill(attuatoriPid[2], SIGCONT);
+            stopFlag = 0;   // Waiting for the next stop to be called
             isListening[0] = 1;
             isListening[1] = 0;
         }
         else if (input == 3 || strcmp(socketString, "PARCHEGGIO") == 0)
         {
+            input = 3;
             while (speed > 0)
             {
                 writeMessage(ecuLog, "FRENO 5");
@@ -266,29 +238,23 @@ int main(int argc, char *argv[])
 
         int clientFileDescriptor = accept(ecuFileDescriptor, ptrClientAddress, &clientLength);
         int sensor;
-        while(read(clientFileDescriptor, &sensor, sizeof(int)) < 0)
-        {
-
-        }
-        while(send(clientFileDescriptor, &isListening[sensor], sizeof(int), 0) < 0)
-        {
-
-        }
+        while(recv(clientFileDescriptor, &sensor, sizeof(int), 0) < 0);
+        while(send(clientFileDescriptor, &isListening[sensor], sizeof(int), 0) < 0);
 
         // CONTINUARE DA QUI
         memset(socketString, '\0', 16);
 
         if (sensor == 0 && isListening[0] == 1)
         {
-            printf("Pronto a ricevere le stringhe di dati\n");
+            //printf("Pronto a ricevere le stringhe di dati\n");
             receiveString(clientFileDescriptor, socketString);
             
-            if (strcmp(socketString, "SINISTRA") == 0 || strcmp(socketString, "DESTRA") == 0)
+            if (strcmp(socketString, "SINISTRA") * strcmp(socketString, "DESTRA") == 0)
             {
                 int count = 0;
-                for (int count = 0; count < 4; count++)
+                while(count < 4)
                 {
-                    printf("Comando di sterzata\n");
+                    //printf("Comando di sterzata\n");
                     writeMessageToPipe(fileDescriptorSteer, "%s", socketString);
                     writeMessage(ecuLog, "STERZATA A %s", socketString);
                     writeMessageToPipe(hmiFileDescriptor, "STERZATA A %s", socketString);
@@ -298,7 +264,8 @@ int main(int argc, char *argv[])
                     {
                         break;
                     }
-
+                    sleep(1);
+                    count++;
                 }
             }
             else
@@ -307,7 +274,7 @@ int main(int argc, char *argv[])
 
                 if (newSpeed < speed)
                 {
-                    printf("Frena\n");
+                    //printf("Frena\n");
                     while (newSpeed < speed)
                     {
                         read(pipeArray[READ], &input, sizeof(int));
@@ -325,7 +292,7 @@ int main(int argc, char *argv[])
 
                 if (newSpeed > speed)
                 { // Throttle
-                printf("Accelera\n");
+                    //printf("Accelera\n");
                     while (newSpeed > speed)
                     {
                         read(pipeArray[READ], &input, sizeof(int));
@@ -345,7 +312,7 @@ int main(int argc, char *argv[])
 
         if (sensor == 1 && isListening[1] == 1)
         {
-            printf("Parcheggio \n");
+            //printf("Parcheggio \n");
             if (park(clientFileDescriptor) != 0)
             {
                 close(clientFileDescriptor);

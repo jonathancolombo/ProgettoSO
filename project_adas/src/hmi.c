@@ -2,14 +2,13 @@
 // LIBRERIE
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/un.h> /* For AFUNIX sockets */
-#include <string.h>
-#include <signal.h>
+#include <sys/types.h> 
 #include <sys/wait.h>
+#include <sys/stat.h>
 #include <fcntl.h>
+#include <signal.h>
+#include <unistd.h> 
+#include <string.h>
 
 #include "functions.h"
 
@@ -41,7 +40,7 @@ int main(int argc, char *argv[])
     /*
      * Controlla la tipologia di AVVIO impostata e restituisce un errore
      */
-    if ((argc < 2) || (strcmp(argv[1], "ARTIFICIALE") != 0 && strcmp(argv[1], "NORMALE") != 0))
+    if(argc != 2 || strcmp(argv[1], "NORMALE") * strcmp(argv[1], "ARTIFICIALE") != 0)
     {
         printf("Inserisci il comando di avvio NORMALE o ARTIFICIALE\n");
         exit(EXIT_FAILURE);
@@ -64,10 +63,8 @@ int main(int argc, char *argv[])
         // imposto il pgid ed eseguo una execv
         printf("Sono il processo figlio\n");
         printf("Eseguo la exec dal processo figlio\n");
-        //printf("argv[0]: %s, argv: %s\n", argv[1], argv);
-        execl("./ecu", "./ecu", NULL);
-        //execv(argv[0], argv);
-        //execl("../control/centralECU", "./centralECU", argv[1], 0);
+        char *args[] = {"./ecu", NULL};
+        execv(args[0], args);
     }
 
     printf("HMI Output system initialized\n\n");

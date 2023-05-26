@@ -29,12 +29,18 @@ int main(int argc, char *argv[]) {
         {
             printf("Veicolo avviato\n");
             write(fileDescriptor, command, strlen(command)+1);
-        } else if(strcmp(command, "PARCHEGGIO") == 0) {
+        } 
+        else if(strcmp(command, "PARCHEGGIO") == 0) 
+        {
             printf("Parcheggio avviato\n");
             write(fileDescriptor, command, strlen(command)+1);
-        } else if(strcmp(command, "ARRESTO") == 0) {
+        } 
+        else if(strcmp(command, "ARRESTO") == 0) 
+        {
             write(fileDescriptor, command, strlen(command)+1);
-        } else {
+        } 
+        else 
+        {
             printf("Command not found. Please try again\n");
         }
     }
