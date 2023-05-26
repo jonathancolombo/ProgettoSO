@@ -38,26 +38,29 @@ int main(int argc, char *argv[])
     ecuPid = getppid();
     pidSurroundViewCamera = fork();
 
-    if (pidSurroundViewCamera < 0)
+    if (pidSurroundViewCamera < 0) 
     {
         perror("fork error!");
         return EXIT_FAILURE;
     }
 
-    if (pidSurroundViewCamera == 0)
+    if (pidSurroundViewCamera == 0) 
     {
-        argv[0] = "./surroundviewcamera";
-        execv(argv[0], argv);
-        return 1;
-    }
-    else
+        char *newArgv[] = {"./surroundviewcamera", NULL};
+        execv(newArgv[0], newArgv);
+        perror("execv error!");
+        return EXIT_FAILURE;
+    } 
+    else 
     {
         signal(SIGUSR1, sigStartHandler);
-        signal(SIGTERM,sigTermHandler);
+        signal(SIGTERM, sigTermHandler);
         
         init(argv[1]);
         pause();
     }
+
+    return EXIT_SUCCESS;
 
 }
 
@@ -73,7 +76,7 @@ void init(char* modalita)
     }
         
         openFile("assist.log","w",&fileLog);
-        while((socketFileDescriptor = createConnection("ecuSocket")) < 0)
+        while((socketFileDescriptor = createConnection("./ecuSocket")) < 0)
             sleep(1);
 }
 

@@ -36,7 +36,6 @@ void writeOnLog();
 void sigStartHandler();
 void sigStopHandler();
 void sigTermHandler();
-void openFile(char filename[], char mode[], FILE **filePointer);
 int createConnection(char *socketName);
 
 int main (int argc, char *argv[]) 
@@ -92,7 +91,7 @@ void startProcess(char **mode) {
 
     printf("Cameras.log aperto in modalità lettura\n");
 
-    while((socketFd = createConnection("ecuSocket")) < 0)
+    while((socketFd = createConnection("./ecuSocket")) < 0)
     {
         sleep(1);
     }
@@ -144,13 +143,6 @@ void sigTermHandler() {
     kill(getpid(),SIGTERM);
 }
 
-void openFile(char filename[], char mode[], FILE **filePointer) {
-    *filePointer = fopen(filename, mode);
-    if (*filePointer == NULL) {
-        printf("Errore nell'apertura del file");
-        exit(1);
-    }
-}
 
 int createConnection(char *socketName)
 {

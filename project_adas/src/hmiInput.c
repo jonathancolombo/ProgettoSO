@@ -7,10 +7,11 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include "functions.h"
+
 int fileDescriptor;
 
 void signalHandler();
-int createPipe(char *pipeName);
 
 int main(int argc, char *argv[]) {
     char command[32];
@@ -19,11 +20,10 @@ int main(int argc, char *argv[]) {
     signal(SIGINT, signalHandler);
 
     printf("HMI Input system initialized\n\n");
-    fileDescriptor = createPipe("hmiInputToEcuPipe");
+    fileDescriptor = createPipe("./hmiInputToEcuPipe");
     write(fileDescriptor, &pid, sizeof(int));
     while(1) 
     {
-        printf("Inserisci un comando per avviare il sistema: INIZIO, PARCHEGGIO o ARRESTO\n:\n");
         scanf("%s", &command);
         if(strcmp(command, "INIZIO") == 0) 
         {
@@ -43,26 +43,6 @@ int main(int argc, char *argv[]) {
 void signalHandler() 
 {
     close(fileDescriptor);
-    unlink("hmiInputToEcuPipe");
+    unlink("./hmiInputToEcuPipe");
     exit(EXIT_SUCCESS);
-}
-
-int createPipe(char *pipeName) 
-{
-    int fileDescriptor;
-    unlink(pipeName);
-    if (mknod(pipeName, __S_IFIFO, 0) < 0 )
-    {    //Creating named pipe
-        exit(EXIT_FAILURE);
-    }
-    chmod(pipeName, 0660);
-    do {
-        fileDescriptor = open(pipeName, O_WRONLY);    //Opening named pipe for write
-        if(fileDescriptor == -1)
-        {
-            printf("%s non trovata. Riprova ancora...\n", pipeName);
-            sleep(1);
-        }
-    } while(fileDescriptor == -1);
-    return fileDescriptor;
 }
