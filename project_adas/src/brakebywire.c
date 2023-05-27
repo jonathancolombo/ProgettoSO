@@ -21,20 +21,24 @@ int pipeArray[2];
 FILE *fileLog;
 char *command;
 
+void handleFailure() 
+{
+    fclose(fileLog);
+    exit(EXIT_FAILURE);
+}
+
+void handleStop() 
+{
+    writeMessage(fileLog, "ARRESTO AUTO");
+}
+
+
 int main(void)
 {
-    printf("\n");
-
-    printf("\n");
-
-    printf("\n");
-
-    printf("\n");
-
-    printf("\n");
 
     printf("PROCESSO BRAKE BY WIRE\n");
     signal(SIGTSTP, handleStop);
+    signal(SIGUSR1, handleFailure);
 
     printf("Tento di aprire il file brake.log in scrittura\n");
     fileLog = fopen("brake.log", "w");
@@ -45,14 +49,14 @@ int main(void)
         exit(EXIT_FAILURE);
     }
 
+    int ecuFileDescriptor;
+    char command[16];
     printf("File di log aperto correttamente\n");
     
-    printf("Faccio una read non bloccante dalla pipe\n");
-    int ecuFileDescriptor = openPipeOnRead("./brakePipe");
-    char command[16];
+    ecuFileDescriptor = openPipeOnRead("./brakePipe");
+
     for(;;)
     {
-        //printf("Leggo una linea\n");
         readline(ecuFileDescriptor, command);
         if (strncmp(command, "FRENO", 5) == 0)
         {
@@ -63,10 +67,5 @@ int main(void)
 
     fclose(fileLog);
     exit(EXIT_SUCCESS);
-}
-
-void handleStop() 
-{
-    writeMessage(fileLog, "ARRESTO AUTO");
 }
 

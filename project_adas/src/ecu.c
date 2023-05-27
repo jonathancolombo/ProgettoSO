@@ -101,6 +101,8 @@ int main(int argc, char *argv[])
     // imposto il file di Log della ECU
     printf("Cerco di aprire ECU.log\n");
     FILE *ecuLog;
+    int clientFileDescriptor;
+    int sensor;
     ecuLog = fopen("ecu.log", "w");
 
     if (ecuLog == NULL)
@@ -170,7 +172,7 @@ int main(int argc, char *argv[])
     { // Reads from HMI Input terminal
 
         close(pipeArray[READ]);
-        for (;;)
+        while(1)
         {
             input = getInput(hmiInputFileDescriptor, hmiFileDescriptor, ecuLog);
             //input = getInput(hmiInputFileDescriptor, hmiFileDescriptor, hmiLog);
@@ -191,11 +193,10 @@ int main(int argc, char *argv[])
 
     close(pipeArray[WRITE]);
 
-    for (;;)
+    while (1)
     {
         read(pipeArray[READ], &input, sizeof(int));
 
-        
         if ((input == 1 || strcmp(socketString, "PERICOLO") == 0) && stopFlag == 0 && strcmp(socketString, "PARCHEGGIO") != 0)
         {
             writeMessageToPipe(hmiFileDescriptor, "ARRESTO AUTO");
@@ -233,23 +234,27 @@ int main(int argc, char *argv[])
             kill(sensoriPid[0], SIGSTOP); // stoppo il frontwindshield camera
             kill(sensoriPid[1], SIGSTOP); // stoppo il radar
 
-            sensoriPid[2] = fork(); // 2, genero park assist
-            if (sensoriPid[2] < 0)
+            sensoriPid[2] = fork(); // Generazione di park assist
+            if (sensoriPid[2] < 0) 
             {
-                perror("Fork error\n");
+                perror("Fork error");
                 printf("Processo park assist non generato correttamente\n");
                 exit(EXIT_FAILURE);
-            }
-            else
+            } 
+            else if (sensoriPid[2] == 0) 
             {
+                // Codice da eseguire nel processo figlio
                 startParkAssist(&argv[1]);
             }
+            // Codice da eseguire nel processo padre
         }
 
-        int clientFileDescriptor = accept(ecuFileDescriptor, ptrClientAddress, &clientLength);
-        int sensor;
-        while(recv(clientFileDescriptor, &sensor, sizeof(int), 0) < 0);
-        while(send(clientFileDescriptor, &isListening[sensor], sizeof(int), 0) < 0);
+        clientFileDescriptor = accept(ecuFileDescriptor, ptrClientAddress, &clientLength);
+
+        while(recv(clientFileDescriptor, &sensor, sizeof(int), 0) < 0)
+            ;
+        while(send(clientFileDescriptor, &isListening[sensor], sizeof(int), 0) < 0)
+            ;
 
         // CONTINUARE DA QUI
         memset(socketString, '\0', 16);
@@ -261,10 +266,10 @@ int main(int argc, char *argv[])
             
             if (strcmp(socketString, "SINISTRA") * strcmp(socketString, "DESTRA") == 0)
             {
+                printf("Comando di sterzata\n");
                 int count = 0;
                 while(count < 4)
                 {
-                    //printf("Comando di sterzata\n");
                     writeMessageToPipe(fileDescriptorSteer, "%s", socketString);
                     writeMessage(ecuLog, "STERZATA A %s", socketString);
                     writeMessageToPipe(hmiFileDescriptor, "STERZATA A %s", socketString);
@@ -328,34 +333,33 @@ int main(int argc, char *argv[])
                 close(clientFileDescriptor);
                 break;
             }
-            close(clientFileDescriptor);
         }
+        close(clientFileDescriptor);
     }
 
     close(pipeArray[READ]);
     fclose(ecuLog);
     close(hmiInputFileDescriptor);
     close(hmiFileDescriptor);
-    kill(attuatoriPid[0], SIGINT); // sigint su steer by wire
-    kill(attuatoriPid[1], SIGINT); // sigint su throttle control
-    kill(attuatoriPid[2], SIGTSTP); // stoppo brake by wire
-    kill(sensoriPid[0], SIGINT); // sigint su front windshield camera
-    kill(sensoriPid[1], SIGINT); // sigint su front facing radar
-    kill(sensoriPid[2], SIGINT);
-    kill(inputPid, SIGINT);
-    unlink("./ecuSocket");
-    unlink("./throttlePipe");
-    unlink("./steerPipe");
-    unlink("./brakePipe");
-    unlink("./ecuToHmiPipe");
-    unlink("./hmiInputToEcuPipe");
+    endProgram(SIGINT);
     exit(EXIT_SUCCESS);
 }
 
 void startProcess(char **mode)
 {
-    //pid_t attuatoriPid[3];
-    //pid_t sensoriPid[3];
+    attuatoriPid[0] = fork(); // Genera steer by wire
+
+    if (attuatoriPid[0] < 0) {
+        perror("Fork error\n");
+        printf("Processo steer by wire non generato correttamente\n");
+        exit(EXIT_FAILURE);
+    } else if (attuatoriPid[0] == 0) {
+        printf("Eseguo steer by wire con una execv\n");
+        char *argv[] = {"./steerbywire", *mode, NULL};
+        execv(argv[0], argv);
+        perror("Errore durante l'esecuzione di execv\n");
+        exit(EXIT_FAILURE);
+    }
 
     attuatoriPid[1] = fork(); // Genera throttle control
 
@@ -366,33 +370,6 @@ void startProcess(char **mode)
     } else if (attuatoriPid[1] == 0) {
         printf("Eseguo throttle by control con una execv\n");
         char *argv[] = {"./throttlebycontrol", *mode, NULL};
-        execv(argv[0], argv);
-        perror("Errore durante l'esecuzione di execv\n");
-        exit(EXIT_FAILURE);
-    }
-
-    sensoriPid[1] = fork(); // Genera forward facing radar
-    if (sensoriPid[1] < 0) {
-        perror("Fork error\n");
-        printf("Processo forward facing radar non generato correttamente\n");
-        exit(EXIT_FAILURE);
-    } else if (sensoriPid[1] == 0) {
-        printf("Eseguo forward facing radar con una execv\n");
-        char *argv[] = {"./forwardfacingradar", *mode, NULL};
-        execv(argv[0], argv);
-        perror("Errore durante l'esecuzione di execv\n");
-        exit(EXIT_FAILURE);
-    }
-
-    attuatoriPid[0] = fork(); // Genera steer by wire
-
-    if (attuatoriPid[0] < 0) {
-        perror("Fork error\n");
-        printf("Processo steer by wire non generato correttamente\n");
-        exit(EXIT_FAILURE);
-    } else if (attuatoriPid[0] == 0) {
-        printf("Eseguo steer by wire con una execv\n");
-        char *argv[] = {"./steerbywire", *mode, NULL};
         execv(argv[0], argv);
         perror("Errore durante l'esecuzione di execv\n");
         exit(EXIT_FAILURE);
@@ -426,8 +403,20 @@ void startProcess(char **mode)
         exit(EXIT_FAILURE);
     }
 
+    sensoriPid[1] = fork(); // Genera forward facing radar
+    if (sensoriPid[1] < 0) {
+        perror("Fork error\n");
+        printf("Processo forward facing radar non generato correttamente\n");
+        exit(EXIT_FAILURE);
+    } else if (sensoriPid[1] == 0) {
+        printf("Eseguo forward facing radar con una execv\n");
+        char *argv[] = {"./forwardfacingradar", *mode, NULL};
+        execv(argv[0], argv);
+        perror("Errore durante l'esecuzione di execv\n");
+        exit(EXIT_FAILURE);
+    }
+
     // Codice del processo padre
-    // ...
 }
 
 void startParkAssist(char **mode)
@@ -438,13 +427,15 @@ void startParkAssist(char **mode)
     argv[1] = *mode;
     argv[2] = NULL;
     execv(argv[0], argv);
+    perror("Errore durante l'esecuzione di execv\n");
+    exit(EXIT_FAILURE);
 }
 
 void receiveString(int fileDescriptor, char *string)
 {
     do
     {
-        while(read(fileDescriptor, string, 1) < 0)
+        while(recv(fileDescriptor, string, 1, 0) < 0)
             sleep(1);
     } while(*string++ != '\0');
 }

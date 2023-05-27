@@ -56,8 +56,8 @@ int openPipeOnRead(char *pipeName)
     return fileDescriptor;
 }
 
-int readline (int fd, char *str) {
-    int n;
+int readline (int fd, char *str) 
+{
     do {
         if(read (fd, str, 1) < 0) {
             return -1;

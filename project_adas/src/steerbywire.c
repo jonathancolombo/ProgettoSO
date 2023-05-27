@@ -20,25 +20,15 @@
 #include "functions.h"
 
 FILE* fileLog;
-int pipeArray[2];
 
-void handleFailure() {
+void handleFailure() 
+{
     fclose(fileLog);
     exit(EXIT_FAILURE);
 }
 
 int main(int argc, char* argv[])
 {
-    printf("\n");
-
-    printf("\n");
-
-    printf("\n");
-
-    printf("\n");
-
-    printf("\n");
-
     printf("PROCESSO STEER BY WIRE\n");
     signal(SIGUSR1, handleFailure);
 
@@ -52,20 +42,29 @@ int main(int argc, char* argv[])
     }
 
     printf("File di log aperto correttamente\n");
-    
-    printf("Faccio una read non bloccante su steer by wire\n");
+
+    int fileDescriptor;
+    int readValue;
     char command[16];
-    int fileDescriptor = openPipeOnRead("./steerPipe");
-    int readValue = 0;
-    for (;;)
+    do 
     {
-        //printf("Leggo una linea\n");
-        if (readValue = readline(fileDescriptor, command) == -1)
+        fileDescriptor = open("./steerPipe", O_RDONLY | O_NONBLOCK);    //Opening named pipe for write
+        if(fileDescriptor == -1)
+        {
+            printf("Pipe non trovata. Riprova ancora...\n");
+            sleep(1);
+        }
+    } while(fileDescriptor == -1);
+
+    printf("Pipe steerPipe trovata\n");
+    while (1)
+    {
+        if ((readValue = readline(fileDescriptor, command)) == -1)
         {
             writeMessage(fileLog, "NO ACTION");
             sleep(1);
         }
-        else if (strcmp(command, "DESTRA") * strcmp(command, "SINISTRA") == 0)
+        else if ((strcmp(command, "DESTRA") == 0) || (strcmp(command, "SINISTRA") == 0))
         {
             writeMessage(fileLog, "STO GIRANDO A %s", command);
             sleep(1);

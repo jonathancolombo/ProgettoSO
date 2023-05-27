@@ -11,7 +11,13 @@ $(OUTPUT_DIR)/%: %.c functions.c
 
 clean:
 	rm -rf $(TARGETS)
+	rm -f brakePipe
+	rm -f throttlePipe
+	rm -f steerPipe
+	rm -f ecuToHmiPipe
+	rm -f hmiInputToEcuPipe
+	rm -f ecuSocket	
 	find . -type f -name "*.log" -delete
-	find . -type f \( -name "*Pipe*" -o -name "*Socket*" \) -delete
+	
 
 .PHONY: all clean

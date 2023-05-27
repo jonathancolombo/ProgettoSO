@@ -14,40 +14,46 @@ int fileDescriptor;
 void signalHandler();
 
 int main(int argc, char *argv[]) {
-    char command[32];
     int pid = getpid();
-
     signal(SIGINT, signalHandler);
-
-    printf("HMI Input system initialized\n\n");
+    
+    printf("HMI Input inizializzato\n\n");
     fileDescriptor = createPipe("./hmiInputToEcuPipe");
     write(fileDescriptor, &pid, sizeof(int));
-    while(1) 
-    {
-        scanf("%s", &command);
-        if(strcmp(command, "INIZIO") == 0) 
-        {
+    
+    while (1) {
+        char command[32];
+        printf("Input possibili: INIZIO, PARCHEGGIO, ARRESTO:\n");
+        scanf("%s", command);
+        getchar();  // Pulizia del buffer di input
+
+        if (strcmp(command, "INIZIO") == 0) {
             printf("Veicolo avviato\n");
-            write(fileDescriptor, command, strlen(command)+1);
-        } 
-        else if(strcmp(command, "PARCHEGGIO") == 0) 
-        {
+            if (write(fileDescriptor, command, strlen(command) + 1) == -1) {
+                perror("Errore durante la scrittura sul pipe");
+                exit(EXIT_FAILURE);
+            }
+        } else if (strcmp(command, "PARCHEGGIO") == 0) {
             printf("Parcheggio avviato\n");
-            write(fileDescriptor, command, strlen(command)+1);
-        } 
-        else if(strcmp(command, "ARRESTO") == 0) 
-        {
-            write(fileDescriptor, command, strlen(command)+1);
-        } 
-        else 
-        {
+            if (write(fileDescriptor, command, strlen(command) + 1) == -1) {
+                perror("Errore durante la scrittura sul pipe");
+                exit(EXIT_FAILURE);
+            }
+        } else if (strcmp(command, "ARRESTO") == 0) {
+            printf("Arresto avviato\n");
+            if (write(fileDescriptor, command, strlen(command) + 1) == -1) {
+                perror("Errore durante la scrittura sul pipe");
+                exit(EXIT_FAILURE);
+            }
+        } else {
             printf("Command not found. Please try again\n");
         }
     }
+
+    exit(EXIT_SUCCESS);
 }
 
-void signalHandler() 
-{
+void signalHandler() {
     close(fileDescriptor);
     unlink("./hmiInputToEcuPipe");
     exit(EXIT_SUCCESS);
