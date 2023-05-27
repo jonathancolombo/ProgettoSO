@@ -1,8 +1,3 @@
-//
-// Created by jonathan on 09/05/23.
-//
-
-
 #include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
@@ -11,7 +6,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/socket.h>
-#include <sys/un.h> /* For AFUNIX sockets */
+#include <sys/un.h>
 #include <fcntl.h>
 #include <time.h>
 #include <stdarg.h>
@@ -19,61 +14,72 @@
 
 #include "functions.h"
 
+#define PIPE_NAME "./steerPipe"
+#define LOG_FILE_NAME "steer.log"
+
 FILE* fileLog;
 
-void handleFailure() 
+void handleFailure()
 {
     fclose(fileLog);
     exit(EXIT_FAILURE);
 }
 
+void handleStop()
+{
+    writeMessage(fileLog, "ARRESTO AUTO");
+    fclose(fileLog);
+    exit(EXIT_SUCCESS);
+}
+
 int main(int argc, char* argv[])
 {
     printf("PROCESSO STEER BY WIRE\n");
+
     signal(SIGUSR1, handleFailure);
+    signal(SIGTSTP, handleStop);
 
-    printf("Tento di aprire il file brake.log in scrittura\n");
-    fileLog = fopen("steer.log", "w");
+    printf("Tento di aprire il file %s in scrittura\n", LOG_FILE_NAME);
+    fileLog = fopen(LOG_FILE_NAME, "w");
 
-    if (fileLog ==  NULL)
+    if (fileLog == NULL)
     {
-        printf("Errore nell'apertura del file brake.log\n");
+        printf("Errore nell'apertura del file %s\n", LOG_FILE_NAME);
         exit(EXIT_FAILURE);
     }
 
     printf("File di log aperto correttamente\n");
 
-    int fileDescriptor;
-    int readValue;
+    int pipeDescriptor;
+    int bytesRead;
     char command[16];
-    do 
+
+    do
     {
-        fileDescriptor = open("./steerPipe", O_RDONLY | O_NONBLOCK);    //Opening named pipe for write
-        if(fileDescriptor == -1)
+        pipeDescriptor = open(PIPE_NAME, O_RDONLY | O_NONBLOCK);
+        if (pipeDescriptor == -1)
         {
             printf("Pipe non trovata. Riprova ancora...\n");
             sleep(1);
         }
-    } while(fileDescriptor == -1);
+    } while (pipeDescriptor == -1);
 
-    printf("Pipe steerPipe trovata\n");
-    while (1)
+    printf("Pipe %s trovata\n", PIPE_NAME);
+
+    for (;;)
     {
-        if ((readValue = readline(fileDescriptor, command)) == -1)
+        if ((bytesRead = readline(pipeDescriptor, command)) == -1)
         {
             writeMessage(fileLog, "NO ACTION");
             sleep(1);
         }
-        else if ((strcmp(command, "DESTRA") == 0) || (strcmp(command, "SINISTRA") == 0))
+        else if (strcmp(command, "SINISTRA") == 0 || strcmp(command, "DESTRA") == 0)
         {
             writeMessage(fileLog, "STO GIRANDO A %s", command);
             sleep(1);
-        } 
+        }
     }
 
     fclose(fileLog);
-    wait(NULL);
     exit(EXIT_SUCCESS);
 }
-
-

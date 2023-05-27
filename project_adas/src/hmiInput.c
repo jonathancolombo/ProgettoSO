@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -24,29 +23,26 @@ int main(int argc, char *argv[]) {
     while (1) {
         char command[32];
         printf("Input possibili: INIZIO, PARCHEGGIO, ARRESTO:\n");
-        scanf("%s", command);
+        if (scanf("%31s", command) != 1) {
+            fprintf(stderr, "Errore durante la lettura dell'input\n");
+            exit(EXIT_FAILURE);
+        }
         getchar();  // Pulizia del buffer di input
 
         if (strcmp(command, "INIZIO") == 0) {
             printf("Veicolo avviato\n");
-            if (write(fileDescriptor, command, strlen(command) + 1) == -1) {
-                perror("Errore durante la scrittura sul pipe");
-                exit(EXIT_FAILURE);
-            }
         } else if (strcmp(command, "PARCHEGGIO") == 0) {
             printf("Parcheggio avviato\n");
-            if (write(fileDescriptor, command, strlen(command) + 1) == -1) {
-                perror("Errore durante la scrittura sul pipe");
-                exit(EXIT_FAILURE);
-            }
         } else if (strcmp(command, "ARRESTO") == 0) {
             printf("Arresto avviato\n");
-            if (write(fileDescriptor, command, strlen(command) + 1) == -1) {
-                perror("Errore durante la scrittura sul pipe");
-                exit(EXIT_FAILURE);
-            }
         } else {
-            printf("Command not found. Please try again\n");
+            printf("Comando non valido. Riprova\n");
+            continue;
+        }
+        
+        if (write(fileDescriptor, command, strlen(command) + 1) == -1) {
+            perror("Errore durante la scrittura sul pipe");
+            exit(EXIT_FAILURE);
         }
     }
 

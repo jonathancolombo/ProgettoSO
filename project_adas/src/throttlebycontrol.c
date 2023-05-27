@@ -1,6 +1,3 @@
-//
-// Created by jonathan on 09/05/23.
-//
 #include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
@@ -8,7 +5,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <sys/un.h> /* For AFUNIX sockets */
+#include <sys/un.h>
 #include <fcntl.h>
 #include <sys/wait.h>
 #include <time.h>
@@ -17,26 +14,10 @@
 
 #include "functions.h"
 
-
-int deltaSpeed;
 FILE* fileLog;
-int status;	//pipe status
-int pipeArray[2]; //pipe array
-pid_t pidChildWriter;
-
 
 int main(int argc, char* argv[])
 {
-    printf("\n");
-
-    printf("\n");
-
-    printf("\n");
-
-    printf("\n");
-
-    printf("\n");
-
     printf("PROCESSO THROTTLE BY CONTROL\n");
 
     printf("Tento di aprire il file di log throttle.log\n");
@@ -62,11 +43,6 @@ int main(int argc, char* argv[])
             writeMessage(fileLog, "AUMENTO %d", increment);
             sleep(1);
         } 
-        else
-        {
-            writeMessage(fileLog, "NO ACTION");
-            sleep(1);
-        }
     }
 
     fclose(fileLog);
