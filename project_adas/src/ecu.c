@@ -2,21 +2,16 @@
 // Created by jonathan on 09/05/23.
 //
 
-#define _GNU_SOURCE
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/types.h>
+
+
 #include <sys/stat.h>
 #include <sys/wait.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include <signal.h>
 #include <ctype.h>
 #include <sys/socket.h>
 #include <sys/un.h> /* For AFUNIX sockets */
-#include <time.h>
-#include <stdarg.h>
+#include <fcntl.h>
+
 
 #include "functions.h"
 
@@ -42,6 +37,10 @@ int speed;
 int pidWithArgs[2]; //THROTTLE CONTROL, PARK ASSIST
 int pidWithoutArgs[3];  //STEER BY WIRE, BRAKE BY WIRE, FRONT WINDHSIELD CAMERA
 */
+
+void executeProcess(const char *processName, const char *mode);
+
+
 void endProgram(int __sig) {    //ENDING PROGRAM WITH DESIRED SIGNAL
     kill(attuatoriPid[2], SIGTSTP);
 
@@ -60,14 +59,14 @@ void endProgram(int __sig) {    //ENDING PROGRAM WITH DESIRED SIGNAL
     unlink("./ecuToHmiPipe");
 }
 
-
+/*
 void throttleFailure() {    //HANDLING THROTTLE FAILURE
     speed = 0;
     kill(attuatoriPid[2], SIGTSTP);
     kill(getppid(), SIGUSR1);
     endProgram(SIGUSR1);
     exit(EXIT_FAILURE);
-}
+}*/
 
 int getInput(int hmiInputFd, int hmiFd, FILE *log)
 { // GET INPUT FROM HMI INPUT
@@ -113,9 +112,9 @@ int main(int argc, char *argv[])
     }
 
     int stopFlag = 0;
-    int input = 0;
+    int input = 0; // from HMI Input
     int inputReader;
-
+    int pipeArray[2];
     struct sockaddr_un ecuServerAddress;
     struct sockaddr *ptrEcuServerAddress;
 
@@ -129,11 +128,12 @@ int main(int argc, char *argv[])
     read(hmiInputFileDescriptor, &inputPid, sizeof(int));
 
     // prevedere dei controlli per la configurazione del rilancio del sistema
-    signal(SIGUSR1, throttleFailure);
+    //signal(SIGUSR1, throttleFailure);
 
     // genero tutti i processi figli della ECU (attuatori e sensori)
     // inizializzo gli attuatori
     printf("Inizializzo i processi\n");
+    remove("./assist.log");
     startProcess(&argv[1]);
 
     
@@ -154,12 +154,12 @@ int main(int argc, char *argv[])
     unlink("./ecuSocket");
     bind(ecuFileDescriptor, ptrEcuServerAddress, serverLength);
     listen(ecuFileDescriptor, 3);
-    int pipeArray[2];
 
-    pipe2(pipeArray, O_NONBLOCK);
+    //pipe2(pipeArray, O_NONBLOCK);
+    pipe(pipeArray);
 
-    FILE *hmiLog = NULL;
-    char socketString[16];
+    
+    char socketString[32];
     int isListening[2] = {0, 0};
 
     if ((inputReader = fork()) < 0)
@@ -172,7 +172,7 @@ int main(int argc, char *argv[])
     { // Reads from HMI Input terminal
 
         close(pipeArray[READ]);
-        while(1)
+        for (;;)
         {
             input = getInput(hmiInputFileDescriptor, hmiFileDescriptor, ecuLog);
             //input = getInput(hmiInputFileDescriptor, hmiFileDescriptor, hmiLog);
@@ -257,11 +257,75 @@ int main(int argc, char *argv[])
             ;
 
         // CONTINUARE DA QUI
-        memset(socketString, '\0', 16);
+        memset(socketString, '\0', 32);
 
         if (sensor == 0 && isListening[0] == 1)
         {
+            
+            //contenuto da scommentare-commentare
+            /*
+            receiveString(clientFileDescriptor, socketString);
+
+            if (isNumber(socketString) == 1)
+            {
+                int requestSpeed = atoi(socketString);
+                if (requestSpeed > speed)
+                {
+                    while (requestSpeed > speed)
+                    {
+                        
+                        read(pipeArray[READ], &input, sizeof(int));
+                        if (input != 2)
+                        {
+                            break;
+                        }
+
+                        writeMessage(ecuLog, "INCREMENTO 5");
+                        writeMessageToPipe(hmiFileDescriptor, "INCREMENTO 5");
+                        writeMessageToPipe(fileDescriptorThrottle, "INCREMENTO 5");
+                        speed = speed + 5;
+                        sleep(1);
+                    }
+                }
+                else if (requestSpeed < speed)
+                {
+                    while (requestSpeed < speed)
+                    {
+                        
+                        read(pipeArray[READ], &input, sizeof(int));
+                        if (input != 2)
+                        {
+                            break;
+                        }
+                        writeMessage(ecuLog, "FRENO 5");
+                        writeMessageToPipe(hmiFileDescriptor, "FRENO 5");
+                        writeMessageToPipe(fileDescriptorBrake, "FRENO 5");
+                        speed = speed - 5;
+                        sleep(1);
+                    }
+                }
+            }
+            else if (strcmp(socketString, "SINISTRA") * strcmp(socketString, "DESTRA") == 0)
+            {
+                int count = 0;
+                while(count < 4)
+                {
+                    writeMessageToPipe(fileDescriptorSteer, "%s", socketString);
+                    writeMessage(ecuLog, "STERZATA A %s", socketString);
+                    writeMessageToPipe(hmiFileDescriptor, "STERZATA A %s", socketString);
+                    read(pipeArray[READ], &input, sizeof(int));
+                    if (input != 2)
+                    {
+                        break;
+                    }
+                    sleep(1);
+                    count++;
+                }
+            }
+            */
+            
             //printf("Pronto a ricevere le stringhe di dati\n");
+            
             receiveString(clientFileDescriptor, socketString);
             
             if (strcmp(socketString, "SINISTRA") * strcmp(socketString, "DESTRA") == 0)
@@ -323,8 +387,8 @@ int main(int argc, char *argv[])
                     }
                 }
             }
+            
         }
-
         if (sensor == 1 && isListening[1] == 1)
         {
             //printf("Parcheggio \n");
@@ -345,6 +409,49 @@ int main(int argc, char *argv[])
     exit(EXIT_SUCCESS);
 }
 
+void executeProcess(const char *processName, const char *mode)
+{
+    printf("Eseguo %s con una execv\n", processName);
+    const char *argv[] = {processName, mode, NULL};
+    execv(argv[0], (char * const *)argv);
+    perror("Errore durante l'esecuzione di execv\n");
+    exit(EXIT_FAILURE);
+}
+
+void startProcess(char **mode)
+{
+    const char *attuatoriProcesses[] = {"./steerbywire", "./throttlebycontrol", "./brakebywire"};
+    const char *sensoriProcesses[] = {"./frontwindshieldcamera", "./forwardfacingradar"};
+
+    for (int i = 0; i < 3; i++) 
+    {
+        attuatoriPid[i] = fork();
+        if (attuatoriPid[i] < 0) 
+        {
+            perror("Fork error\n");
+            printf("Processo %s non generato correttamente\n", attuatoriProcesses[i]);
+            exit(EXIT_FAILURE);
+        } 
+        else if (attuatoriPid[i] == 0) 
+        {
+            executeProcess(attuatoriProcesses[i], *mode);
+        }
+    }
+
+    for (int i = 0; i < 2; i++) {
+        sensoriPid[i] = fork();
+        if (sensoriPid[i] < 0) 
+        {
+            perror("Fork error\n");
+            printf("Processo %s non generato correttamente\n", sensoriProcesses[i]);
+            exit(EXIT_FAILURE);
+        } 
+        else if (sensoriPid[i] == 0) {
+            executeProcess(sensoriProcesses[i], *mode);
+        }
+    }
+}
+/*
 void startProcess(char **mode)
 {
     attuatoriPid[0] = fork(); // Genera steer by wire
@@ -418,26 +525,31 @@ void startProcess(char **mode)
 
     // Codice del processo padre
 }
+*/
 
 void startParkAssist(char **mode)
 {
-    char *argv[3];
-    printf("Eseguo park assist con una execv\n");
-    argv[0] = "./parkassist";
-    argv[1] = *mode;
-    argv[2] = NULL;
-    execv(argv[0], argv);
-    perror("Errore durante l'esecuzione di execv\n");
-    exit(EXIT_FAILURE);
+    const char *parkProcess = "./parkassist";
+    sensoriPid[2] = fork();
+    if (sensoriPid[2] < 0) 
+    {
+        perror("Fork error\n");
+        printf("Processo %s non generato correttamente\n", parkProcess);
+        exit(EXIT_FAILURE);
+    } 
+    else if (sensoriPid[2] == 0) 
+    {
+        executeProcess(parkProcess, *mode);
+    }
 }
 
-void receiveString(int fileDescriptor, char *string)
+void receiveString(int fileDescriptor, char *str)
 {
     do
     {
-        while(recv(fileDescriptor, string, 1, 0) < 0)
+        while(recv(fileDescriptor, str, 1, 0) < 0)
             sleep(1);
-    } while(*string++ != '\0');
+    } while(*str++ != '\0');
 }
 
 int park(int clientFd)

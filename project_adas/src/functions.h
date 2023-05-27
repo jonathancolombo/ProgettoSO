@@ -1,5 +1,3 @@
-
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -19,7 +17,7 @@ int createPipe(char *pipeName);
 
 int openPipeOnRead(char *pipeName);
 
-int readline (int fd, char *str);
+int readline(int fd, char *str);
 
 void formattedTime(char *timeBuffer);
 
