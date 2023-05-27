@@ -84,6 +84,16 @@ int getInput(int hmiInputFd, int hmiFd, FILE *log)
     }
 }
 
+int isNumber(char *str)
+{ // CHECKING IF STRING IS A NUMBER
+    for (int i = 0; str[i] != '\0'; i++)
+    {
+        if (!isdigit(str[i]))
+            return 0;
+    }
+    return 1;
+}
+
 int main(int argc, char *argv[])
 {
     printf("PROCESSO ECU\n");
@@ -144,7 +154,7 @@ int main(int argc, char *argv[])
     listen(ecuFileDescriptor, 3);
     int pipeArray[2];
 
-    pipe2(pipeArray[2], O_NONBLOCK);
+    pipe2(pipeArray, O_NONBLOCK);
 
     FILE *hmiLog = NULL;
     char socketString[16];

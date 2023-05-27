@@ -43,24 +43,14 @@ void stopHandler(int signal) {
 
 int main(int argc, char *argv[])
 {
-    printf("\n");
-
-    printf("\n");
-
-    printf("\n");
-
-    printf("\n");
-
-    printf("\n");
-
+    
     printf("PROCESSO FRONT WIND SHIELD CAMERA\n");
 
     printf("Cerco di aprire camera.log\n");
 
     cameraLog = fopen("camera.log", "w");
 
-    if (cameraLog == NULL)
-    {
+    if (cameraLog == NULL) {
         printf("Errore sull'apertura del file camera.log\n");
         perror("open file error!\n");
         exit(EXIT_FAILURE);
@@ -71,60 +61,60 @@ int main(int argc, char *argv[])
     signal(SIGUSR1, handleFailure);
     signal(SIGTSTP, stopHandler);
 
-    printf("Tento di aprire il file frontCamera.data \n");
-    fileToRead = open("frontCamera.data", O_RDONLY);
-    
+    printf("Tento di aprire il file frontCamera.data\n");
+    int fileToRead = open("frontCamera.data", O_RDONLY);
+
     printf("Inizializzo la socket\n");
     int socketFd, serverLen;
     struct sockaddr_un serverUNIXAddress;
     struct sockaddr* serverSockAddrPtr;
     int sensorID = 0;
-    int isListening; 
+    int isListening;
     char command[16];
     int index = 0;
-    for(;;)
-    {
-        serverSockAddrPtr = (struct sockaddr*) &serverUNIXAddress;
-        serverLen = sizeof (serverUNIXAddress);
-        socketFd = socket (AF_UNIX, SOCK_STREAM, 0);
-        serverUNIXAddress.sun_family = AF_UNIX;
-        strcpy (serverUNIXAddress.sun_path, "./ecuSocket");
 
-        while(connect(socketFd, serverSockAddrPtr, serverLen) < 0) 
-        { 
+    for (;;) {
+        serverSockAddrPtr = (struct sockaddr*) &serverUNIXAddress;
+        serverLen = sizeof(serverUNIXAddress);
+        socketFd = socket(AF_UNIX, SOCK_STREAM, 0);
+        serverUNIXAddress.sun_family = AF_UNIX;
+        strcpy(serverUNIXAddress.sun_path, "./ecuSocket");
+
+        while (connect(socketFd, serverSockAddrPtr, serverLen) < 0) {
             sleep(2);
         }
 
-        memset(command, '\0', 16);
-        
-        while(read(fileToRead, &command[index], 1) < 0)
-        {
-            while ((command[index] != '\n') && (command != EOF))
-            {
-                index++;
-                while(read(fileToRead, &command[index], 1) < 0);
+        memset(command, '\0', sizeof(command));
+
+        while (read(fileToRead, &command[index], 1) > 0) {
+            if (command[index] == '\n') {
+                index = 0;
+
+                while (send(socketFd, &sensorID, sizeof(int), 0) < 0);
+                while (read(socketFd, &isListening, sizeof(int)) < 0);
+
+                if (isListening == 1) {
+                    send(socketFd, command, strlen(command) + 1, 0);
+                    fprintf(cameraLog, "%s\n", command);
+                }
+                break;
             }
+            index++;
         }
 
-        while(send(socketFd, &sensorID, sizeof(int), 0) < 0);
-        while (read(socketFd, &isListening, sizeof(int)) < 0);
-
-        if (isListening == 1)
-        {
-            send(socketFd, command, strlen(command) + 1, 0);
-            writeMessage(cameraLog, "%s", command);
-        }
         close(socketFd);
 
-        if (command == EOF)
-        {
+        if (command[0] == '\0') {
+            // Hai raggiunto la fine del file
             fclose(cameraLog);
+            close(fileToRead);
             exit(EXIT_SUCCESS);
         }
+
         sleep(1);
     }
-    fclose(cameraLog);
-    exit(EXIT_SUCCESS);
+
+    return 0;
 }
 
 

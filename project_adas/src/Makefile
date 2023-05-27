@@ -12,6 +12,6 @@ $(OUTPUT_DIR)/%: %.c functions.c
 clean:
 	rm -rf $(TARGETS)
 	find . -type f -name "*.log" -delete
-	find . -type f \( -name "*pipe*" -o -name "*socket*" \) -delete
+	find . -type f \( -name "*Pipe*" -o -name "*Socket*" \) -delete
 
 .PHONY: all clean
