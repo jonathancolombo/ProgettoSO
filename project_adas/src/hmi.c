@@ -1,30 +1,38 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/types.h>
+#include <sys/types.h> 
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <signal.h>
-#include <unistd.h>
+#include <unistd.h> 
 #include <string.h>
 
-#include "functions.h"
+#include "commonFunctions.h"
 
-FILE *fileEcuLog;
-int ecuProcessPID;
+int pidECU;
 int terminated;
-int fileDescriptor;
+int fd;
 
 void countTerminated() {
     terminated++;
     if (terminated >= 2) {
-        close(fileDescriptor);
+        close(fd);
         exit(EXIT_SUCCESS);
     }
 }
 
+int readFromPipe(int fd) {
+    char str[256];
+    if(readline(fd, str) < 0) {
+        return -1;
+    }
+    printf("%s\n", str);
+    return 0;
+}
+
 void failureHandler() {
-    fprintf(stderr, "ERRORE ACCELERAZIONE\nTERMINAZIONE PROGRAMMA...\n");
+    printf("ERRORE ACCELERAZIONE\nTERMINAZIONE PROGRAMMA...");
     exit(EXIT_FAILURE);
 }
 
@@ -33,45 +41,24 @@ int main(int argc, char *argv[]) {
     signal(SIGUSR1, failureHandler);
     terminated = 0;
 
-    /*
-     * Controlla la tipologia di AVVIO impostata e restituisce un errore
-     */
-    if (argc != 2 || (strcmp(argv[1], "NORMALE") != 0 && strcmp(argv[1], "ARTIFICIALE") != 0)) {
-        fprintf(stderr, "Inserisci il comando di avvio NORMALE o ARTIFICIALE\n");
+    if(argc != 2 || strcmp(argv[1], "NORMALE") * strcmp(argv[1], "ARTIFICIALE") != 0) {
+        printf("Argomenti non validi. Riprovare\n");
         exit(EXIT_FAILURE);
     }
 
-    printf("Eseguo il comando 'gnome-terminal' per avviare 'hmiInput'\n");
     system("gnome-terminal -- ./hmiInput");
-
-    // Fork del processo ECU
-    ecuProcessPID = fork();
-
-    // Controllo se il processo ECU è stato creato correttamente
-    if (ecuProcessPID < 0) {
-        fprintf(stderr, "Errore durante la fork del processo figlio\n");
-        perror("fork error\n");
+    if((pidECU = fork()) < 0) {
         exit(EXIT_FAILURE);
-    } else if (ecuProcessPID == 0) {
-        // Sono il processo figlio
-        printf("Sono il processo figlio\n");
-        printf("Eseguo l'execv dal processo figlio\n");
-        char *args[] = {"./ecu", NULL};
-        execv(args[0], args);
-        // Se l'esecuzione raggiunge questo punto, c'è stato un errore nell'execv
-        fprintf(stderr, "Errore durante l'esecuzione di 'ecu'\n");
-        perror("execv error\n");
-        exit(EXIT_FAILURE);
+    }
+    else if(pidECU == 0) {
+        execl("./ecu", "./ecu", argv[1], 0); // eseguo ecu
     }
 
     printf("HMI Output system initialized\n\n");
-    fileDescriptor = openPipeOnRead("./ecuToHmiPipe");
-    printf("Pipe trovata.\n\n");
-    printf("Inizio a leggere dalla pipe\n");
-
-    for (;;) {
-        while (readFromPipe(fileDescriptor) < 0);
+    int n;
+    fd = openPipeOnRead("./ecuToHmiPipe");
+    printf("Named pipe found.\n\n");
+    while(1) {
+        while(readFromPipe(fd) < 0);
     }
-
-    exit(EXIT_SUCCESS);
 }

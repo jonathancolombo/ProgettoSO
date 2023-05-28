@@ -1,85 +1,50 @@
 #include <stdio.h>
-#include <unistd.h>
-#include <signal.h>
 #include <stdlib.h>
-#include <string.h>
-#include <sys/types.h>
 #include <sys/wait.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <fcntl.h>
-#include <time.h>
-#include <stdarg.h>
+#include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <signal.h>
 
-#include "functions.h"
+#include "commonFunctions.h"
 
-#define PIPE_NAME "./steerPipe"
-#define LOG_FILE_NAME "steer.log"
+FILE *steerLog;
 
-FILE* fileLog;
-
-void handleFailure()
-{
-    fclose(fileLog);
+void handleFailure() {
+    fclose(steerLog);
     exit(EXIT_FAILURE);
 }
 
-void handleStop()
-{
-    writeMessage(fileLog, "ARRESTO AUTO");
-    fclose(fileLog);
-    exit(EXIT_SUCCESS);
-}
+int main(int argc, char *argv[]) {
+    char steerDirection[16];
+    int ecuFd;
 
-int main(int argc, char* argv[])
-{
-    printf("PROCESSO STEER BY WIRE\n");
+    int readVal;
 
     signal(SIGUSR1, handleFailure);
-    signal(SIGTSTP, handleStop);
+    
+    createLog("./steer", &steerLog);
 
-    printf("Tento di aprire il file %s in scrittura\n", LOG_FILE_NAME);
-    fileLog = fopen(LOG_FILE_NAME, "w");
-
-    if (fileLog == NULL)
-    {
-        printf("Errore nell'apertura del file %s\n", LOG_FILE_NAME);
-        exit(EXIT_FAILURE);
-    }
-
-    printf("File di log aperto correttamente\n");
-
-    int pipeDescriptor;
-    int bytesRead;
-    char command[16];
-
-    do
-    {
-        pipeDescriptor = open(PIPE_NAME, O_RDONLY | O_NONBLOCK);
-        if (pipeDescriptor == -1)
-        {
-            printf("Pipe non trovata. Riprova ancora...\n");
+    do {
+        ecuFd = open("./steerPipe", O_RDONLY | O_NONBLOCK);    //Opening named pipe for write
+        if(ecuFd == -1){
+            printf("pipe not found. Trying again...\n");
             sleep(1);
         }
-    } while (pipeDescriptor == -1);
+    } while(ecuFd == -1);
 
-    printf("Pipe %s trovata\n", PIPE_NAME);
-
-    for (;;)
-    {
-        if ((bytesRead = readline(pipeDescriptor, command)) == -1)
-        {
-            writeMessage(fileLog, "NO ACTION");
+    while (1) {
+        if((readVal = readline(ecuFd, steerDirection)) == -1) {
+            writeMessage(steerLog, "NO ACTION");
             sleep(1);
-        }
-        else if (strcmp(command, "SINISTRA") == 0 || strcmp(command, "DESTRA") == 0)
-        {
-            writeMessage(fileLog, "STO GIRANDO A %s", command);
+        }else if(strcmp(steerDirection, "SINISTRA") * strcmp(steerDirection, "DESTRA") == 0) {
+            writeMessage(steerLog, "STO GIRANDO A %s", steerDirection);
             sleep(1);
         }
     }
 
-    fclose(fileLog);
+    fclose(steerLog);
+    wait(NULL);
     exit(EXIT_SUCCESS);
 }

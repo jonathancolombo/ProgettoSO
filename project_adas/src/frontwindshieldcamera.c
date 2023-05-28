@@ -1,103 +1,72 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+#include <fcntl.h>
 #include <unistd.h>
 #include <signal.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/un.h>
 #include <sys/wait.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <ctype.h>
-#include <time.h>
-#include <stdarg.h>
-#include "functions.h"
+#include <sys/socket.h>
+#include <sys/un.h> /* For AFUNIX sockets */
+#define DEFAULT_PROTOCOL 0
 
-FILE *cameraLog;
-int socketFileDescriptor;
-int fileToRead;
+#include "commonFunctions.h"
+#include "socketFunctions.h"
+
+FILE *sensorLog;
+int fd;
+int ecuFd;
 
 void handleFailure(int signal) {
-    close(fileToRead);
-    fclose(cameraLog);
+    close(fd);
+    fclose(sensorLog);
     exit(EXIT_FAILURE);
 }
 
 void stopHandler(int signal) {
-    close(socketFileDescriptor);
+    close(ecuFd);
 }
 
 int main(int argc, char *argv[]) {
-    printf("PROCESSO FRONT WIND SHIELD CAMERA\n");
-
-    printf("Cerco di aprire camera.log\n");
-    cameraLog = fopen("camera.log", "w");
-
-    if (cameraLog == NULL) {
-        printf("Errore sull'apertura del file camera.log\n");
-        perror("open file error!\n");
-        exit(EXIT_FAILURE);
-    }
-
-    printf("File camera.log aperto correttamente\n");
+    createLog("./camera", &sensorLog);
 
     signal(SIGUSR1, handleFailure);
     signal(SIGTSTP, stopHandler);
+    
+    const int sensorID = 0; // Value in order to be recognized by the socket
+    int isListening;    // Indicates whether ECU is listening or not
 
-    printf("Tento di aprire il file frontCamera.data\n");
-    fileToRead = open("frontCamera.data", O_RDONLY);
+    int ecuLen;
+    struct sockaddr_un ecuUNIXAddress;
+    struct sockaddr *ecuSockAddrPtr = (struct sockaddr*) &ecuUNIXAddress;
 
-    printf("Inizializzo la socket\n");
-    int socketFd, serverLen;
-    struct sockaddr_un serverUNIXAddress;
-    struct sockaddr *serverSockAddrPtr;
-    int sensorID = 0;
-    int isListening;
-    char command[16];
-    int index = 0;
+    fd = open("./frontCamera.data", O_RDONLY);
+    char str[16];
+    int i = 0;
 
-    for (;;) {
-        serverSockAddrPtr = (struct sockaddr *) &serverUNIXAddress;
-        serverLen = sizeof(serverUNIXAddress);
-        socketFd = socket(AF_UNIX, SOCK_STREAM, 0);
-        serverUNIXAddress.sun_family = AF_UNIX;
-        strcpy(serverUNIXAddress.sun_path, "./ecuSocket");
+    while(1) {
+        socketAuth(&ecuFd, &ecuUNIXAddress, &ecuLen, "./ecuSocket");
+        connectServer(ecuFd, ecuSockAddrPtr, ecuLen);
 
-        while (connect(socketFd, serverSockAddrPtr, serverLen) < 0) {
-            sleep(2);
+        memset(str, '\0', 16);
+        i = 0;
+        while(read(fd, &str[i], 1) < 0);
+        while(str[i] != '\n' && str[i] != EOF) {
+            i++;
+            while(read(fd, &str[i], 1) < 0);
         }
-
-        memset(command, '\0', sizeof(command));
-        index = 0;
-
-        while (read(fileToRead, &command[index], 1) > 0) {
-            if (command[index] == '\n') {
-                while (send(socketFd, &sensorID, sizeof(int), 0) < 0);
-                while (read(socketFd, &isListening, sizeof(int)) < 0);
-
-                if (isListening == 1) {
-                    send(socketFd, command, strlen(command) + 1, 0);
-                    writeMessage(cameraLog, "%s", command);
-                }
-
-                break;
-            }
-
-            index++;
+        char temp = str[i];
+        str[i] = '\0';
+        while(send(ecuFd, &sensorID, sizeof(sensorID), 0) < 0);
+        while(recv(ecuFd, &isListening, sizeof(sensorID), 0) < 0);
+        if(isListening == 1) {
+            send(ecuFd, str, strlen(str)+1, 0);
+            writeMessage(sensorLog, "%s", str);
         }
-
-        close(socketFd);
-
-        if (command[0] == '\0') {
-            // Hai raggiunto la fine del file
-            fclose(cameraLog);
-            close(fileToRead);
+        close(ecuFd);
+        if (temp == EOF)
+        {
+            fclose(sensorLog);
             exit(EXIT_SUCCESS);
         }
-
         sleep(1);
     }
-
-    return 0;
 }

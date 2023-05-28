@@ -1,63 +1,36 @@
 #include <stdio.h>
-#include <unistd.h>
-#include <signal.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <fcntl.h>
-#include <time.h>
-#include <stdarg.h>
-#include <sys/stat.h>
+#include <sys/wait.h>
+#include <signal.h>
+#include <unistd.h>
 
-#include "functions.h"
+#include "commonFunctions.h"
 
-FILE *fileLog;
+FILE *brakeLog;
 
-void handleFailure()
-{
-    fclose(fileLog);
+void handleStop() {
+    writeMessage(brakeLog, "ARRESTO AUTO");
+}
+
+void handleFailure() {
+    fclose(brakeLog);
     exit(EXIT_FAILURE);
 }
 
-void handleStop()
-{
-    writeMessage(fileLog, "ARRESTO AUTO");
-}
-
-int main(void)
-{
-    printf("PROCESSO BRAKE BY WIRE\n");
-    
+int main(int argc, char *argv[]) {
     signal(SIGTSTP, handleStop);
     signal(SIGUSR1, handleFailure);
-
-    printf("Tento di aprire il file brake.log in scrittura\n");
-    fileLog = fopen("brake.log", "w");
-
-    if (fileLog == NULL)
-    {
-        printf("Errore nell'apertura del file brake.log\n");
-        exit(EXIT_FAILURE);
-    }
-
-    int ecuFileDescriptor;
-    char command[16];
-    printf("File di log aperto correttamente\n");
-
-    ecuFileDescriptor = openPipeOnRead("./brakePipe");
-
-    for (;;)
-    {
-        readline(ecuFileDescriptor, command);
-        if (strncmp(command, "FRENO", 5) == 0)
-        {
-            int speed = atoi(command + 6);
-            writeMessage(fileLog, "FRENO %d", speed);
+    int ecuFd;
+    char str[16];
+    int decrement; 
+    createLog("./brake", &brakeLog);
+    ecuFd = openPipeOnRead("./brakePipe");
+    while(1) {
+        readline(ecuFd, str);
+        if(strncmp(str, "FRENO", 5) == 0) {
+            decrement = atoi(str + 6);
+            writeMessage(brakeLog, "FRENO %d", decrement);
         }
     }
-
-    fclose(fileLog);
-    exit(EXIT_SUCCESS);
 }

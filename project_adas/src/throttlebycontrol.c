@@ -1,50 +1,46 @@
 #include <stdio.h>
-#include <unistd.h>
-#include <signal.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <fcntl.h>
 #include <sys/wait.h>
-#include <time.h>
-#include <stdarg.h>
-#include <sys/stat.h>
+#include <signal.h>
+#include <sys/types.h>
+#include <unistd.h>
 
-#include "functions.h"
+#include "commonFunctions.h"
 
-FILE* fileLog;
+FILE *throttleLog;
 
-int main(int argc, char* argv[])
-{
-    printf("PROCESSO THROTTLE BY CONTROL\n");
-
-    printf("Tento di aprire il file di log throttle.log\n");
-    fileLog = fopen("throttle.log", "w");
-        
-    if (fileLog == NULL) 
-    {
-        printf("Errore nell'apertura del file throttle.log\n");
-        exit(EXIT_FAILURE);
+int main(int argc, char *argv[]) {
+    int ecuFd;
+    char str[16];
+    char randName[128];
+    FILE *rnd;
+    int increment;
+    int randomNum;
+    
+    if(strcmp(argv[1], "NORMALE") == 0) {
+        sprintf(randName, "/dev/random");
+    } else if(strcmp(argv[1], "ARTIFICIALE") == 0) {
+        sprintf(randName, "./randomARTIFICIALE.binary");
     }
 
-    printf("File throttle.log aperto correttamente\n");
+    rnd = fopen(randName, "r");
 
-    int ecuFileDescriptor = openPipeOnRead("./throttlePipe");
-    char command[16];
-
-    for (;;)
-    {
-        readline(ecuFileDescriptor, command);
-        if (strncmp(command, "INCREMENTO", 10) == 0)
-        {
-            int increment = atoi(command + 11);
-            writeMessage(fileLog, "AUMENTO %d", increment);
-            sleep(1);
-        } 
+    createLog("./throttle", &throttleLog);
+    ecuFd = openPipeOnRead("./throttlePipe");
+    while(1) {
+        readline(ecuFd, str);
+        if(strncmp(str, "INCREMENTO", 10) == 0) {
+            increment = atoi(str + 11);
+            writeMessage(throttleLog, "AUMENTO %d", increment);
+            while(fread(&randomNum, sizeof(int), 1, rnd) < 0);
+            randomNum = randomNum % 100000;
+            if(randomNum == 0) {
+                kill(getppid(), SIGUSR1);
+                exit(EXIT_FAILURE);
+            }
+        }
     }
-
-    fclose(fileLog);
+    fclose(throttleLog);
     exit(EXIT_SUCCESS);
 }
