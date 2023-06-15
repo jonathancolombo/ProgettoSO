@@ -6,16 +6,21 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <sys/types.h>
 
-void createLog(char *name, FILE **log) {
+int createLog(char *name, FILE **log) {
     char *fileName = (char*) malloc((strlen(name)+5)*sizeof(char));
     sprintf(fileName, "%s.log", name);
     remove(fileName);
-    if((*log = fopen(fileName, "w")) < 0){
-        exit(EXIT_FAILURE);
+    *log = fopen(fileName, "w");
+    free(fileName);
+    
+    if (*log == NULL) {
+        return -1; // Indica il fallimento nell'apertura del file
     }
+    
+    return 0; // Indica il successo
 }
+
 
 void formattedTime(char *timeBuffer) {
     time_t rawTime;

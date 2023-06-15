@@ -9,27 +9,56 @@
 
 FILE *brakeLog;
 
-void handleStop() {
+void start();
+void handleStop();
+void handleFailure();
+void sendSignals();
+void getCommandFromPipeAndWrite(int);
+
+int main(int argc, char *argv[]) 
+{
+    start();
+    exit(EXIT_SUCCESS);
+}
+
+void start()
+{
+    // invio dei segnali di stop e fallimento 
+    sendSignals();
+    createLog("./brake", &brakeLog);
+     
+    int ecuFileDescriptor = openPipeOnRead("./brakePipe");
+    getCommandFromPipeAndWrite(ecuFileDescriptor);
+}
+
+void handleStop() 
+{
     writeMessage(brakeLog, "ARRESTO AUTO");
 }
 
-void handleFailure() {
+void handleFailure() 
+{
     fclose(brakeLog);
     exit(EXIT_FAILURE);
 }
 
-int main(int argc, char *argv[]) {
+void sendSignals()
+{
+    // invio dei segnali di stop e fallimento 
     signal(SIGTSTP, handleStop);
     signal(SIGUSR1, handleFailure);
-    int ecuFd;
-    char str[16];
+}
+
+void getCommandFromPipeAndWrite(int ecuFileDescriptor)
+{
+    char command[16];
     int decrement; 
-    createLog("./brake", &brakeLog);
-    ecuFd = openPipeOnRead("./brakePipe");
-    while(1) {
-        readline(ecuFd, str);
-        if(strncmp(str, "FRENO", 5) == 0) {
-            decrement = atoi(str + 6);
+    for (;;) 
+    {
+        readline(ecuFileDescriptor, command);
+        if(strncmp(command, "FRENO", 5) == 0) 
+        {
+            decrement = atoi(command + 6);
             writeMessage(brakeLog, "FRENO %d", decrement);
         }
     }

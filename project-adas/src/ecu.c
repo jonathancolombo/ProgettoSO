@@ -19,81 +19,19 @@
 #define READ 0
 #define WRITE 1
 
+// VARIABILI GLOBALI    
 int speed = 0;
-
 int pidWithArgs[2]; //THROTTLE CONTROL, PARK ASSIST
 int pidWithoutArgs[3];  //STEER BY WIRE, BRAKE BY WIRE, FRONT WINDHSIELD CAMERA
 int inputPid;
 
-int getInput(int hmiInputFd, int hmiFd, FILE *log)
-{ // GET INPUT FROM HMI INPUT
-    char str[32];
-    if (readline(hmiInputFd, str) == 0)
-    {
-        if (strcmp(str, "ARRESTO") == 0)
-            return 1;
-        else if (strcmp(str, "INIZIO") == 0)
-            return 2;
-        else if (strcmp(str, "PARCHEGGIO") == 0)
-            return 3;
-        return -1;
-    }
-}
+// PROTOTIPI DI FUNZIONE
+int getInput(int hmiInputFd, int hmiFd, FILE *log);
+int isNumber(char *str);
+int park(int clientFd);
+void endProgram(int __sig);
+void throttleFailure();
 
-int isNumber(char *str)
-{ // CHECKING IF STRING IS A NUMBER
-    for (int i = 0; str[i] != '\0'; i++)
-    {
-        if (!isdigit(str[i]))
-            return 0;
-    }
-    return 1;
-}
-
-int park(int clientFd)
-{ // PARKING METHOD
-    char str[8];
-    int result = 1;
-    for (int count = 0; count < 120; count++)
-    {
-        receiveString(clientFd, str);
-        result *= strcmp(str, "0x172a");
-        result *= strcmp(str, "0xd693");
-        result *= strcmp(str, "0x0000");
-        result *= strcmp(str, "0xbdd8");
-        result *= strcmp(str, "0xfaee");
-        result *= strcmp(str, "0x4300");
-        if (result != 0)
-            result = 1;
-    }
-    return result;
-}
-
-void endProgram(int __sig) {    //ENDING PROGRAM WITH DESIRED SIGNAL
-    kill(pidWithoutArgs[1], SIGTSTP);
-    for (int i = 0; i < 2; i++)
-    {
-        kill(pidWithArgs[i], __sig);
-    }
-    for (int i = 0; i < 3; i++)
-    {
-        kill(pidWithoutArgs[i], __sig);
-    }
-    kill(inputPid, SIGINT);
-    unlink("./ecuSocket");
-    unlink("./throttlePipe");
-    unlink("./steerPipe");
-    unlink("./brakePipe");
-    unlink("./ecuToHmiPipe");
-}
-
-void throttleFailure() {    //HANDLING THROTTLE FAILURE
-    speed = 0;
-    kill(pidWithoutArgs[1], SIGTSTP);
-    kill(getppid(), SIGUSR1);
-    endProgram(SIGUSR1);
-    exit(EXIT_FAILURE);
-}
 
 int main(int argc, char *argv[])
 {
@@ -322,4 +260,75 @@ int main(int argc, char *argv[])
     close(hmiFd);
     endProgram(SIGINT);
     exit(EXIT_SUCCESS);
+}
+
+int getInput(int hmiInputFd, int hmiFd, FILE *log)
+{ // GET INPUT FROM HMI INPUT
+    char str[32];
+    if (readline(hmiInputFd, str) == 0)
+    {
+        if (strcmp(str, "ARRESTO") == 0)
+            return 1;
+        else if (strcmp(str, "INIZIO") == 0)
+            return 2;
+        else if (strcmp(str, "PARCHEGGIO") == 0)
+            return 3;
+        return -1;
+    }
+}
+
+int isNumber(char *str)
+{ // CHECKING IF STRING IS A NUMBER
+    for (int i = 0; str[i] != '\0'; i++)
+    {
+        if (!isdigit(str[i]))
+            return 0;
+    }
+    return 1;
+}
+
+int park(int clientFd)
+{ // PARKING METHOD
+    char str[8];
+    int result = 1;
+    for (int count = 0; count < 120; count++)
+    {
+        receiveString(clientFd, str);
+        result *= strcmp(str, "0x172a");
+        result *= strcmp(str, "0xd693");
+        result *= strcmp(str, "0x0000");
+        result *= strcmp(str, "0xbdd8");
+        result *= strcmp(str, "0xfaee");
+        result *= strcmp(str, "0x4300");
+        if (result != 0)
+            result = 1;
+    }
+    return result;
+}
+
+void endProgram(int __sig)
+{    //ENDING PROGRAM WITH DESIRED SIGNAL
+    kill(pidWithoutArgs[1], SIGTSTP);
+    for (int i = 0; i < 2; i++)
+    {
+        kill(pidWithArgs[i], __sig);
+    }
+    for (int i = 0; i < 3; i++)
+    {
+        kill(pidWithoutArgs[i], __sig);
+    }
+    kill(inputPid, SIGINT);
+    unlink("./ecuSocket");
+    unlink("./throttlePipe");
+    unlink("./steerPipe");
+    unlink("./brakePipe");
+    unlink("./ecuToHmiPipe");
+}
+
+void throttleFailure() {    //HANDLING THROTTLE FAILURE
+    speed = 0;
+    kill(pidWithoutArgs[1], SIGTSTP);
+    kill(getppid(), SIGUSR1);
+    endProgram(SIGUSR1);
+    exit(EXIT_FAILURE);
 }
