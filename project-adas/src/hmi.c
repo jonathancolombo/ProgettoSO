@@ -1,64 +1,70 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/types.h> 
+#include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <signal.h>
-#include <unistd.h> 
+#include <unistd.h>
 #include <string.h>
 
 #include "commonFunctions.h"
 
-int pidECU;
-int terminated;
-int fd;
+int ecuProcessID;
+int terminatedProcessesCount;
+int ecuToHmiPipeFD;
 
-void countTerminated() {
-    terminated++;
-    if (terminated >= 2) {
-        close(fd);
+// Funzione per conteggiare i processi terminati
+void handleTermination() {
+    terminatedProcessesCount++;
+    if (terminatedProcessesCount >= 2) {
+        close(ecuToHmiPipeFD);
         exit(EXIT_SUCCESS);
     }
 }
 
+// Funzione per leggere dalla pipe
 int readFromPipe(int fd) {
     char str[256];
-    if(readline(fd, str) < 0) {
+    if (readline(fd, str) < 0) {
         return -1;
     }
     printf("%s\n", str);
     return 0;
 }
 
-void failureHandler() {
+// Funzione per gestire l'errore di accelerazione
+void handleAccelerationError() {
     printf("ERRORE ACCELERAZIONE\nTERMINAZIONE PROGRAMMA...");
     exit(EXIT_FAILURE);
 }
 
 int main(int argc, char *argv[]) {
-    signal(SIGCHLD, countTerminated);
-    signal(SIGUSR1, failureHandler);
-    terminated = 0;
+    signal(SIGCHLD, handleTermination);
+    signal(SIGUSR1, handleAccelerationError);
+    terminatedProcessesCount = 0;
 
-    if(argc != 2 || strcmp(argv[1], "NORMALE") * strcmp(argv[1], "ARTIFICIALE") != 0) {
+    // Controllo degli argomenti passati al programma
+    if (argc != 2 || (strcmp(argv[1], "NORMALE") != 0 && strcmp(argv[1], "ARTIFICIALE") != 0)) {
         printf("Argomenti non validi. Riprovare\n");
         exit(EXIT_FAILURE);
     }
 
+    // Apertura del terminale per l'input dell'HMI
     system("gnome-terminal -- ./hmiInput");
-    if((pidECU = fork()) < 0) {
+
+    // Creazione del processo ECU
+    if ((ecuProcessID = fork()) < 0) {
         exit(EXIT_FAILURE);
-    }
-    else if(pidECU == 0) {
-        execl("./ecu", "./ecu", argv[1], 0); // eseguo ecu
+    } else if (ecuProcessID == 0) {
+        execl("./ecu", "./ecu", argv[1], NULL); // Esecuzione del processo ECU
     }
 
-    printf("HMI Output system initialized\n\n");
+    printf("HMI Output inizializzato\n\n");
     int n;
-    fd = openPipeOnRead("./ecuToHmiPipe");
-    printf("Named pipe found.\n\n");
-    while(1) {
-        while(readFromPipe(fd) < 0);
+    ecuToHmiPipeFD = openPipeOnRead("./ecuToHmiPipe");
+    printf("Nome pipe trovato\n\n");
+    while (1) {
+        while (readFromPipe(ecuToHmiPipeFD) < 0);
     }
 }

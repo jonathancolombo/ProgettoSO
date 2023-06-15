@@ -6,33 +6,65 @@
 
 #include "commonFunctions.h"
 
-int fd;
+int ecuPipeFileDescriptor;
 
-void signalHandler() {
-    close(fd);
+void cleanupAndExit() 
+{
+    close(ecuPipeFileDescriptor);
     unlink("./hmiInputToEcuPipe");
     exit(EXIT_SUCCESS);
 }
 
-int main(int argc, char *argv[]) {
-    char cmd[32];
-    int pid = getpid();
+void handleSignal(int signal) 
+{
+    cleanupAndExit();
+}
 
-    signal(SIGINT, signalHandler);
+void sendCommandToEcu(const char *command) 
+{
+    write(ecuPipeFileDescriptor, command, strlen(command) + 1);
+}
 
-    printf("HMI Input system initialized\n\n");
-    fd = createPipe("./hmiInputToEcuPipe");
-    write(fd, &pid, sizeof(int));
-    while(1) {
-        scanf("%s", &cmd);
-        if(strcmp(cmd, "INIZIO") == 0) {
-            write(fd, cmd, strlen(cmd)+1);
-        } else if(strcmp(cmd, "PARCHEGGIO") == 0) {
-            write(fd, cmd, strlen(cmd)+1);
-        } else if(strcmp(cmd, "ARRESTO") == 0) {
-            write(fd, cmd, strlen(cmd)+1);
-        } else {
-            printf("Command not found. Please try again\n");
+int main(int argc, char *argv[]) 
+{
+    char inputCommand[32];
+    int processId = getpid();
+
+    signal(SIGINT, handleSignal);
+
+    printf("Sistema di input HMI inizializzato\n\n");
+
+    // Creazione del file descriptor per la pipe verso l'ECU
+    ecuPipeFileDescriptor = createPipe("./hmiInputToEcuPipe");
+
+    // Invio dell'ID del processo all'ECU tramite la pipe
+    write(ecuPipeFileDescriptor, &processId, sizeof(int));
+
+    while (1) 
+    {
+        printf("Inserisci un comando (INIZIO, PARCHEGGIO, ARRESTO): ");
+
+        // Lettura del comando inserito dall'utente
+        scanf("%s", inputCommand);
+
+        if (strcmp(inputCommand, "INIZIO") == 0) 
+        {
+            // Invio del comando "INIZIO" all'ECU
+            sendCommandToEcu(inputCommand);
+        } 
+        else if (strcmp(inputCommand, "PARCHEGGIO") == 0) 
+        {
+            // Invio del comando "PARCHEGGIO" all'ECU
+            sendCommandToEcu(inputCommand);
+        } 
+        else if (strcmp(inputCommand, "ARRESTO") == 0) 
+        {
+            // Invio del comando "ARRESTO" all'ECU
+            sendCommandToEcu(inputCommand);
+        } 
+        else 
+        {
+            printf("Comando non valido. Riprova.\n");
         }
     }
 }

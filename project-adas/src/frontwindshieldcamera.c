@@ -5,66 +5,82 @@
 #include <signal.h>
 #include <sys/wait.h>
 #include <sys/socket.h>
-#include <sys/un.h> /* For AFUNIX sockets */
+#include <sys/un.h>
 #define DEFAULT_PROTOCOL 0
 
 #include "commonFunctions.h"
 #include "socketFunctions.h"
 
-FILE *sensorLog;
-int fd;
-int ecuFd;
+FILE *cameraLog;
+int cameraDataFileDescriptor;
+int ecuSocketFileDescriptor;
 
 void handleFailure(int signal) {
-    close(fd);
-    fclose(sensorLog);
+    close(cameraDataFileDescriptor);
+    fclose(cameraLog);
     exit(EXIT_FAILURE);
 }
 
 void stopHandler(int signal) {
-    close(ecuFd);
+    close(ecuSocketFileDescriptor);
 }
 
-int main(int argc, char *argv[]) {
-    createLog("./camera", &sensorLog);
+void initializeCamera() {
+    createLog("./camera", &cameraLog);
 
     signal(SIGUSR1, handleFailure);
     signal(SIGTSTP, stopHandler);
-    
-    const int sensorID = 0; // Value in order to be recognized by the socket
-    int isListening;    // Indicates whether ECU is listening or not
 
-    int ecuLen;
+    cameraDataFileDescriptor = open("./frontCamera.data", O_RDONLY);
+}
+
+void sendDataToEcu(const char *data) {
+    const int cameraID = 0; // Identificatore per la camera
+    int isEcuListening;
+
+    int ecuAddressLength;
     struct sockaddr_un ecuUNIXAddress;
-    struct sockaddr *ecuSockAddrPtr = (struct sockaddr*) &ecuUNIXAddress;
+    struct sockaddr *ecuSocketAddressPtr = (struct sockaddr *)&ecuUNIXAddress;
 
-    fd = open("./frontCamera.data", O_RDONLY);
-    char str[16];
+    socketAuth(&ecuSocketFileDescriptor, &ecuUNIXAddress, &ecuAddressLength, "./ecuSocket");
+    connectServer(ecuSocketFileDescriptor, ecuSocketAddressPtr, ecuAddressLength);
+
+    while (send(ecuSocketFileDescriptor, &cameraID, sizeof(cameraID), 0) < 0)
+        ;
+    while (recv(ecuSocketFileDescriptor, &isEcuListening, sizeof(cameraID), 0) < 0)
+        ;
+
+    if (isEcuListening == 1) {
+        send(ecuSocketFileDescriptor, data, strlen(data) + 1, 0);
+        writeMessage(cameraLog, "%s", data);
+    }
+
+    close(ecuSocketFileDescriptor);
+}
+
+int main(int argc, char *argv[]) {
+    initializeCamera();
+
+    char line[16];
     int i = 0;
 
-    while(1) {
-        socketAuth(&ecuFd, &ecuUNIXAddress, &ecuLen, "./ecuSocket");
-        connectServer(ecuFd, ecuSockAddrPtr, ecuLen);
-
-        memset(str, '\0', 16);
+    while (1) {
+        memset(line, '\0', 16);
         i = 0;
-        while(read(fd, &str[i], 1) < 0);
-        while(str[i] != '\n' && str[i] != EOF) {
+        while (read(cameraDataFileDescriptor, &line[i], 1) < 0)
+            ;
+        while (line[i] != '\n' && line[i] != EOF) {
             i++;
-            while(read(fd, &str[i], 1) < 0);
+            while (read(cameraDataFileDescriptor, &line[i], 1) < 0)
+                ;
         }
-        char temp = str[i];
-        str[i] = '\0';
-        while(send(ecuFd, &sensorID, sizeof(sensorID), 0) < 0);
-        while(recv(ecuFd, &isListening, sizeof(sensorID), 0) < 0);
-        if(isListening == 1) {
-            send(ecuFd, str, strlen(str)+1, 0);
-            writeMessage(sensorLog, "%s", str);
-        }
-        close(ecuFd);
-        if (temp == EOF)
-        {
-            fclose(sensorLog);
+        char temp = line[i];
+        line[i] = '\0';
+
+        sendDataToEcu(line);
+
+        if (temp == EOF) {
+            fclose(cameraLog);
             exit(EXIT_SUCCESS);
         }
         sleep(1);

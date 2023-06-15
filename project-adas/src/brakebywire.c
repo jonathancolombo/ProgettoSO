@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/wait.h>
 #include <signal.h>
 #include <unistd.h>
 
@@ -9,57 +8,68 @@
 
 FILE *brakeLog;
 
-void start();
-void handleStop();
-void handleFailure();
-void sendSignals();
-void getCommandFromPipeAndWrite(int);
-
-int main(int argc, char *argv[]) 
-{
-    start();
-    exit(EXIT_SUCCESS);
-}
-
-void start()
-{
-    // invio dei segnali di stop e fallimento 
-    sendSignals();
-    createLog("./brake", &brakeLog);
-     
-    int ecuFileDescriptor = openPipeOnRead("./brakePipe");
-    getCommandFromPipeAndWrite(ecuFileDescriptor);
-}
-
-void handleStop() 
-{
+void handleStop() {
     writeMessage(brakeLog, "ARRESTO AUTO");
 }
 
-void handleFailure() 
-{
+void handleFailure() {
     fclose(brakeLog);
     exit(EXIT_FAILURE);
 }
 
-void sendSignals()
-{
-    // invio dei segnali di stop e fallimento 
+void setupSignalHandlers() {
+    // Imposta i gestori dei segnali
     signal(SIGTSTP, handleStop);
     signal(SIGUSR1, handleFailure);
 }
 
-void getCommandFromPipeAndWrite(int ecuFileDescriptor)
-{
-    char command[16];
-    int decrement; 
-    for (;;) 
-    {
-        readline(ecuFileDescriptor, command);
-        if(strncmp(command, "FRENO", 5) == 0) 
-        {
-            decrement = atoi(command + 6);
-            writeMessage(brakeLog, "FRENO %d", decrement);
-        }
+void closeResourcesAndExit(int exitCode) {
+    fclose(brakeLog);
+    exit(exitCode);
+}
+
+int openBrakePipe() {
+    int ecuFd = openPipeOnRead("./brakePipe");
+    if (ecuFd < 0) {
+        printf("Impossibile aprire la pipe\n");
+        closeResourcesAndExit(EXIT_FAILURE);
     }
+    return ecuFd;
+}
+
+void processCommand(const char* command) {
+    int decrement;
+    if (strncmp(command, "FRENO", 5) == 0) {
+        decrement = atoi(command + 6);
+        writeMessage(brakeLog, "FRENO %d", decrement);
+    }
+}
+
+int main(int argc, char *argv[]) {
+    setupSignalHandlers();
+
+    // Crea il file di log
+    if (createLog("./brake", &brakeLog) != 0) {
+        printf("Impossibile creare il file di log\n");
+        closeResourcesAndExit(EXIT_FAILURE);
+    }
+
+    // Apri la pipe
+    int ecuFd = openBrakePipe();
+
+    // Loop principale
+    char str[16];
+    while (1) 
+    {
+        // Leggi dalla pipe
+        if (readline(ecuFd, str) == -1) {
+            printf("Errore nella lettura dalla pipe\n");
+            break;
+        }
+
+        // Processa il comando
+        processCommand(str);
+    }
+
+    closeResourcesAndExit(EXIT_SUCCESS);
 }
