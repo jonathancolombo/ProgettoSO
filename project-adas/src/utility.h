@@ -1,4 +1,6 @@
-void createLog(char *name, FILE **log);
+
+
+int createLog(char *name, FILE **log);
 
 void formattedTime(char *timeBuffer);
 

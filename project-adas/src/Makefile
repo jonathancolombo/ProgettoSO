@@ -6,7 +6,7 @@ TARGETS := $(patsubst %.c,$(OUTPUT_DIR)/%,$(SRCS))
 
 all: $(TARGETS)
 
-$(OUTPUT_DIR)/%: %.c commonFunctions.c socketFunctions.c
+$(OUTPUT_DIR)/%: %.c utility.c utilitySocket.c
 	gcc -o $@ $^
 
 clean:
