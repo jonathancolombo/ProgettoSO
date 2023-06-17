@@ -5,8 +5,8 @@
 #include <sys/un.h> /* For AFUNIX sockets */
 #include <signal.h>
 
-#include "commonFunctions.h"
-#include "socketFunctions.h"
+#include "utility.h"
+#include "utilitySocket.h"
 
 FILE *sensorLog;
 
@@ -24,7 +24,7 @@ int main(int argc, char *argv[]) {
     createLog("./radar", &sensorLog);
 
     // Scrittura del messaggio di avvio del sensore nel log
-    writeMessage(sensorLog, "SENSOR LAUNCHED");
+    writeMessage(sensorLog, "Sensore avviato");
 
     // Chiusura del file di log
     fclose(sensorLog);

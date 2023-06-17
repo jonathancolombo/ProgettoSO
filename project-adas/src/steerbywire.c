@@ -7,7 +7,7 @@
 #include <fcntl.h>
 #include <signal.h>
 
-#include "commonFunctions.h"
+#include "utility.h"
 
 FILE *steerLog;
 

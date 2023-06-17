@@ -8,7 +8,7 @@
 #include <unistd.h>
 #include <string.h>
 
-#include "commonFunctions.h"
+#include "utility.h"
 
 int ecuProcessID;
 int terminatedProcessesCount;

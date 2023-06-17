@@ -6,8 +6,8 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "commonFunctions.h"
-#include "socketFunctions.h"
+#include "utility.h"
+#include "utilitySocket.h"
 
 FILE *sensorLog;
 

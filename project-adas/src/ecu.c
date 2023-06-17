@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,8 +11,8 @@
 #include <sys/socket.h>
 #include <sys/un.h> /* For AFUNIX sockets */
 
-#include "commonFunctions.h"
-#include "socketFunctions.h"
+#include "utility.h"
+#include "utilitySocket.h"
 
 #define DEFAULT_PROTOCOL 0
 #define READ 0
@@ -42,19 +41,19 @@ int main(int argc, char *argv[])
     createLog("./ecu", &log);
     char socketStr[16];
 
-    int inputReader; // Input reader PID
-    int input = 0;   // Input from HMIInput
-    int stopFlag = 0;   // Checks if stop procedure has been already done
+    int inputReader; // PID del lettore di input
+    int input = 0;   // Input proveniente da HMIInput
+    int stopFlag = 0;   // Verifica se la procedura di arresto è già stata eseguita
 
     int ecuFd, clientFd, ecuLen, clientLen;
 
-    struct sockaddr_un ecuUNIXAddress;    /*Server address */
-    struct sockaddr *ecuSockAddrPtr;      /*Ptr to server address*/
-    struct sockaddr_un clientUNIXAddress; /*Client address */
-    struct sockaddr *clientSockAddrPtr;   /*Ptr to client address*/
+    struct sockaddr_un ecuUNIXAddress;    /* Indirizzo server */
+    struct sockaddr *ecuSockAddrPtr;      /* Puntatore a indirizzo server */
+    struct sockaddr_un clientUNIXAddress; /* Indirizzo client */
+    struct sockaddr *clientSockAddrPtr;   /* Puntatore a indirizzo client */
 
     int isListening[2] = {0, 0};
-    int sensor; // Indicates which sensor wants to send data
+    int sensor; // Indica quale sensore desidera inviare i dati
 
     hmiFd = createPipe("./ecuToHmiPipe");
     hmiInputFd = openPipeOnRead("./hmiInputToEcuPipe");
@@ -66,10 +65,11 @@ int main(int argc, char *argv[])
         , "./brakebywire", "./brakebywire", "./frontwindshieldcamera"
         , "./frontwindshieldcamera"};
 
-    signal(SIGUSR1, throttleFailure);   //THROTTLE FAILURE HANDLING FUNCTION
+    signal(SIGUSR1, throttleFailure);   // Funzione di gestione dell'errore di controllo dell'acceleratore
 
-    remove("./assist.log");    //REMOVING ASSIST LOG IF EXISTS
-    
+    remove("./assist.log");    // Rimuove il file di log assist se esiste
+
+    // Genero tutti i processi figli
     for (int i = 0; i < 1; i++)
     {
         if ((pidWithArgs[i] = fork()) < 0)
@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
     clientLen = sizeof(clientUNIXAddress);
 
     ecuFd = socket(AF_UNIX, SOCK_STREAM, DEFAULT_PROTOCOL);
-    ecuUNIXAddress.sun_family = AF_UNIX; /* Set domain type */
+    ecuUNIXAddress.sun_family = AF_UNIX; /* Imposta il tipo di dominio */
 
     strcpy(ecuUNIXAddress.sun_path, "./ecuSocket");
     unlink("./ecuSocket");
@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     else if (inputReader == 0)
-    { // Reads from HMI Input terminal
+    { // Legge dal terminale di input HMI
         close(anonFd[READ]);
         while (1)
         {
@@ -143,7 +143,7 @@ int main(int argc, char *argv[])
         {
             writeMessageToPipe(hmiFd, "ARRESTO AUTO");
             kill(pidWithoutArgs[1], SIGTSTP);
-            stopFlag = 1;   // Stop procedure has been done
+            stopFlag = 1;   // La procedura di arresto è stata eseguita
             speed = 0;
             isListening[0] = 0;
             isListening[1] = 0;
@@ -151,12 +151,13 @@ int main(int argc, char *argv[])
         else if (input == 2 && strcmp(socketStr, "PARCHEGGIO") != 0)
         {
             kill(pidWithoutArgs[1], SIGCONT);
-            stopFlag = 0;   // Waiting for the next stop to be called
+            stopFlag = 0;   // In attesa del successivo arresto da richiamare
             isListening[0] = 1;
             isListening[1] = 0;
         }
         else if (input == 3 || strcmp(socketStr, "PARCHEGGIO") == 0)
         {
+            // Pre-procedura di parcheggio avviata
             input = 3;
             while (speed > 0)
             {
@@ -176,7 +177,7 @@ int main(int argc, char *argv[])
             {
                 kill(pidWithoutArgs[i], SIGSTOP);
             }
-            if ((pidWithArgs[1] = fork()) == 0) //LAUNCHING PARK ASSIST
+            if ((pidWithArgs[1] = fork()) == 0) // Avvio di Park Assist
             {
                 execl("./parkassist", "./parkassist", argv[1]);
             }
@@ -191,10 +192,10 @@ int main(int argc, char *argv[])
         {
             receiveString(clientFd, socketStr);
             if (isNumber(socketStr) == 1)
-            { // If ECU has received a number...
+            { // Se l'ECU ha ricevuto un numero...
                 int requestedSpeed = atoi(socketStr);
                 if (requestedSpeed > speed)
-                { // Throttle
+                { // Acceleratore
                     while (requestedSpeed > speed)
                     {
                         read(anonFd[READ], &input, sizeof(int));
@@ -210,7 +211,7 @@ int main(int argc, char *argv[])
                     }
                 }
                 else if (requestedSpeed < speed)
-                { // Brake
+                { // Freno
                     while (requestedSpeed < speed)
                     {
                         read(anonFd[READ], &input, sizeof(int));
@@ -227,7 +228,7 @@ int main(int argc, char *argv[])
                 }
             }
             else if (strcmp(socketStr, "SINISTRA") * strcmp(socketStr, "DESTRA") == 0)
-            {
+            {   // Sterza
                 int count = 0;
                 while(count < 4) {
                     writeMessageToPipe(steerFd, "%s", socketStr);
@@ -261,6 +262,7 @@ int main(int argc, char *argv[])
     endProgram(SIGINT);
     exit(EXIT_SUCCESS);
 }
+
 
 int getInput(int hmiInputFd, int hmiFd, FILE *log)
 { // GET INPUT FROM HMI INPUT

@@ -4,8 +4,8 @@
 #include <sys/socket.h>
 #include <sys/un.h> /* For AFUNIX sockets */
 
-#include "commonFunctions.h"
-#include "socketFunctions.h"
+#include "utility.h"
+#include "utilitySocket.h"
 
 // Funzione per gestire il lancio del sensore della fotocamera
 void launchCameraSensor() {
@@ -15,7 +15,7 @@ void launchCameraSensor() {
     createLog("./cameras", &log);
 
     // Scrittura del messaggio di avvio del sensore
-    writeMessage(log, "SENSOR LAUNCHED");
+    writeMessage(log, "Sensore avviato");
 
     // Chiusura del file di log
     fclose(log);

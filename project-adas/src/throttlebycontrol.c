@@ -6,7 +6,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 
-#include "commonFunctions.h"
+#include "utility.h"
 
 FILE *throttleLog;
 
@@ -94,7 +94,7 @@ int main(int argc, char *argv[]) {
     } else if (strcmp(argv[1], "ARTIFICIALE") == 0) {
         snprintf(randomName, sizeof(randomName), "./randomARTIFICIALE.binary");
     } else {
-        printf("Tipo di nome casuale non valido. Utilizzare NORMALE o ARTIFICIALE\n");
+        printf("Errore! Utilizzare NORMALE o ARTIFICIALE\n");
         return EXIT_FAILURE;
     }
 

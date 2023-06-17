@@ -4,7 +4,7 @@
 #include <string.h>
 #include <signal.h>
 
-#include "commonFunctions.h"
+#include "utility.h"
 
 int ecuPipeFileDescriptor;
 
