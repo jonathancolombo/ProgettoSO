@@ -20,7 +20,7 @@
 
 // VARIABILI GLOBALI    
 int speed = 0;
-int pidWithArgs[2]; //THROTTLE CONTROL, PARK ASSIST
+int pidWithArgs[2]; //THROTTLE CONTROL, FORWARD FACING RADAR
 int pidWithoutArgs[3];  //STEER BY WIRE, BRAKE BY WIRE, FRONT WINDHSIELD CAMERA
 int inputPid;
 
