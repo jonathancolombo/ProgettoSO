@@ -58,7 +58,7 @@ int main(int argc, char *argv[]) {
         closeResourcesAndExit(EXIT_FAILURE);
     }
 
-    // Apri la pipe per la comunicazione con l'ECU (Unità di Controllo Elettronico)
+    // Apri la pipe per la comunicazione con l'ECU (Unità di Controllo)
     int ecuFd = openBrakePipe();
 
     // Loop principale

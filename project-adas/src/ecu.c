@@ -20,7 +20,7 @@
 
 // VARIABILI GLOBALI    
 int speed = 0;
-int pidWithArgs[2]; //THROTTLE CONTROL, PARK ASSIST
+int pidWithArgs[2]; //THROTTLE CONTROL, FORWARD FACING RADAR
 int pidWithoutArgs[3];  //STEER BY WIRE, BRAKE BY WIRE, FRONT WINDHSIELD CAMERA
 int inputPid;
 
@@ -195,7 +195,7 @@ int main(int argc, char *argv[])
             { // Se l'ECU ha ricevuto un numero...
                 int requestedSpeed = atoi(socketStr);
                 if (requestedSpeed > speed)
-                { // Acceleratore
+                { // Accelera
                     while (requestedSpeed > speed)
                     {
                         read(anonFd[READ], &input, sizeof(int));
@@ -327,7 +327,7 @@ void endProgram(int __sig)
     unlink("./ecuToHmiPipe");
 }
 
-void throttleFailure() {    //HANDLING THROTTLE FAILURE
+void throttleFailure() {    //Gestione del fallimento dell'acceleratore
     speed = 0;
     kill(pidWithoutArgs[1], SIGTSTP);
     kill(getppid(), SIGUSR1);
