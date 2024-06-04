@@ -84,7 +84,7 @@ Il programma può essere eseguito in due modalità, selezionate tramite un param
 
 2. **Esecuzione**
    - Eseguire il programma passando come argomento `NORMALE` o `ARTIFICIALE`.
-   - Esempio: `./main NORMALE`
+   - Esempio: `./hmi NORMALE`
 
 ### Struttura dei File
 
